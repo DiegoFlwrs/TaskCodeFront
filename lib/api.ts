@@ -105,9 +105,12 @@ class ApiClient {
       }
     );
 
-    // Guardar token en localStorage
+    // Guardar token en cookie y user en cache
     if (response.token) {
       this.setToken(response.token);
+    }
+    if (response.user) {
+      this.saveUser(response.user);
     }
 
     return response;
@@ -122,9 +125,12 @@ class ApiClient {
       }
     );
 
-    // Guardar token en localStorage
+    // Guardar token en cookie y user en cache
     if (response.token) {
       this.setToken(response.token);
+    }
+    if (response.user) {
+      this.saveUser(response.user);
     }
 
     return response;
@@ -139,25 +145,19 @@ class ApiClient {
       }
     );
 
-    // Guardar token en localStorage
+    // Guardar token en cookie y user en cache
     if (response.token) {
       this.setToken(response.token);
+    }
+    if (response.user) {
+      this.saveUser(response.user);
     }
 
     return response;
   }
 
-  async logout(): Promise<void> {
-    try {
-      await this.request(API_CONFIG.ENDPOINTS.AUTH.LOGOUT, {
-        method: 'POST',
-      });
-    } catch (error) {
-      console.warn('Error during logout:', error);
-    } finally {
-      // Siempre limpiar el storage local
-      this.clearAuth();
-    }
+  logout(): void {
+    this.clearAuth();
   }
 
   async getCurrentUser(): Promise<User> {
@@ -190,9 +190,12 @@ class ApiClient {
       }
     );
 
-    // Guardar token en localStorage
+    // Guardar token en cookie y user en cache
     if (response.token) {
       this.setToken(response.token);
+    }
+    if (response.user) {
+      this.saveUser(response.user);
     }
 
     return response;
@@ -207,9 +210,12 @@ class ApiClient {
       }
     );
 
-    // Guardar token en localStorage
+    // Guardar token en cookie y user en cache
     if (response.token) {
       this.setToken(response.token);
+    }
+    if (response.user) {
+      this.saveUser(response.user);
     }
 
     return response;
@@ -238,39 +244,42 @@ class ApiClient {
 
   // Métodos de gestión de tokens
   setToken(token: string): void {
-    storage.set('auth_token', token);
-    if (typeof document !== 'undefined') {
-      document.cookie = `auth_token=${token}; path=/`;
-    }
+    if (typeof document === 'undefined') return;
+    // Calcular max-age desde el exp del JWT
+    const payload = tokenUtils.decode(token);
+    const maxAge = payload?.exp
+      ? payload.exp - Math.floor(Date.now() / 1000)
+      : 86400;
+    document.cookie = `auth_token=${token}; path=/; max-age=${maxAge}; SameSite=Strict`;
   }
 
   getToken(): string | null {
-    const storedToken = storage.get('auth_token');
-    if (storedToken) {
-      return storedToken;
-    }
-
-    if (typeof document === 'undefined') {
-      return null;
-    }
-
-    const cookieToken = document.cookie
+    if (typeof document === 'undefined') return null;
+    const match = document.cookie
       .split('; ')
-      .find((row) => row.startsWith(`${this.tokenCookieName}=`))
-      ?.split('=')[1];
-
-    if (cookieToken) {
-      storage.set('auth_token', cookieToken);
-      return cookieToken;
-    }
-
-    return null;
+      .find((row) => row.startsWith(`${this.tokenCookieName}=`));
+    return match ? match.split('=')[1] : null;
   }
 
   clearAuth(): void {
-    storage.remove('auth_token');
     if (typeof document !== 'undefined') {
-      document.cookie = 'auth_token=; path=/; max-age=0';
+      document.cookie = 'auth_token=; path=/; max-age=0; SameSite=Strict';
+    }
+    storage.remove('auth_token');
+    storage.remove('auth_user');
+  }
+
+  saveUser(user: User): void {
+    storage.set('auth_user', JSON.stringify(user));
+  }
+
+  loadUser(): User | null {
+    const raw = storage.get('auth_user');
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as User;
+    } catch {
+      return null;
     }
   }
 
@@ -302,6 +311,8 @@ export const authApi = {
   registerTeamLeader: (userData: RegisterTeamLeaderRequest) => 
     apiClient.registerTeamLeader(userData),
   logout: () => apiClient.logout(),
+  saveUser: (user: User) => apiClient.saveUser(user),
+  loadUser: () => apiClient.loadUser(),
   getCurrentUser: () => apiClient.getCurrentUser(),
   generateTeamCode: () => apiClient.generateTeamCode(),
   isAuthenticated: () => apiClient.isAuthenticated(),

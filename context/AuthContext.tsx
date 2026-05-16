@@ -119,33 +119,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Verificar el estado de autenticación al cargar la app
   const checkAuthStatus = async () => {
-    try {
-      dispatch({ type: 'SET_LOADING', payload: true });
+    dispatch({ type: 'SET_LOADING', payload: true });
 
-      if (!authApi.isAuthenticated()) {
-        dispatch({ type: 'LOGOUT' });
-        return;
-      }
+    if (!authApi.isAuthenticated()) {
+      dispatch({ type: 'LOGOUT' });
+      return;
+    }
 
+    // Token válido en cookie — restaurar user desde cache local sin llamar al backend
+    const cachedUser = authApi.loadUser();
+    if (cachedUser) {
+      dispatch({ type: 'SET_USER', payload: cachedUser });
+    } else {
       dispatch({ type: 'SET_AUTHENTICATED' });
-
-      // Verificar con el servidor que el token sigue siendo válido
-      const user = await authApi.getCurrentUser();
-      dispatch({ type: 'SET_USER', payload: user });
-    } catch (error) {
-      const status = typeof error === 'object' && error !== null && 'status' in error
-        ? (error as { status?: number }).status
-        : undefined;
-
-      if (status === 401 || (error instanceof Error && error.message === 'Sesión expirada')) {
-        dispatch({ type: 'LOGOUT' });
-        authApi.logout();
-        return;
-      }
-
-      console.warn('Error checking auth status:', error);
-    } finally {
-      dispatch({ type: 'SET_LOADING', payload: false });
     }
   };
 
@@ -217,13 +203,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Logout
   const logout = async () => {
-    try {
-      dispatch({ type: 'SET_LOADING', payload: true });
-      await authApi.logout();
-    } catch (error) {
-      console.error('Error during logout:', error);
-    } finally {
-      dispatch({ type: 'LOGOUT' });
+    authApi.logout();
+    dispatch({ type: 'LOGOUT' });
+    if (typeof window !== 'undefined') {
+      window.location.href = '/login';
     }
   };
 
