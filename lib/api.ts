@@ -9,12 +9,16 @@ import {
   SendVerificationRequest,
   VerificationResponse,
   VerifyAndRegisterRequest,
-  VerifyAndRegisterTeamLeaderRequest
+  VerifyAndRegisterTeamLeaderRequest,
+  ForgotPasswordSendCodeRequest,
+  ResetPasswordWithCodeRequest,
+  ForgotPasswordResponse
 } from './types';
 import { storage, tokenUtils } from './utils';
 
 class ApiClient {
   private baseURL = API_CONFIG.BASE_URL;
+  private tokenCookieName = 'auth_token';
   
   // Helper para hacer peticiones HTTP
   private async request<T>(
@@ -29,6 +33,8 @@ class ApiClient {
       API_CONFIG.ENDPOINTS.AUTH.SEND_VERIFICATION_CODE,
       API_CONFIG.ENDPOINTS.AUTH.VERIFY_AND_REGISTER,
       API_CONFIG.ENDPOINTS.AUTH.VERIFY_AND_REGISTER_TEAM_LEADER,
+      API_CONFIG.ENDPOINTS.AUTH.FORGOT_PASSWORD_SEND_CODE,
+      API_CONFIG.ENDPOINTS.AUTH.FORGOT_PASSWORD_RESET,
     ]);
     
     // Headers por defecto
@@ -78,7 +84,7 @@ class ApiClient {
 
       return await response.json();
     } catch (error) {
-      console.error('API Error:', error);
+      console.warn('API Error:', error);
       
       // Si es un error de red
       if (error instanceof TypeError) {
@@ -209,17 +215,63 @@ class ApiClient {
     return response;
   }
 
+  // Metodos de recuperacion de contrasena
+  async sendForgotPasswordCode(data: ForgotPasswordSendCodeRequest): Promise<ForgotPasswordResponse> {
+    return this.request<ForgotPasswordResponse>(
+      API_CONFIG.ENDPOINTS.AUTH.FORGOT_PASSWORD_SEND_CODE,
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    );
+  }
+
+  async resetPasswordWithCode(data: ResetPasswordWithCodeRequest): Promise<ForgotPasswordResponse> {
+    return this.request<ForgotPasswordResponse>(
+      API_CONFIG.ENDPOINTS.AUTH.FORGOT_PASSWORD_RESET,
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    );
+  }
+
   // Métodos de gestión de tokens
   setToken(token: string): void {
     storage.set('auth_token', token);
+    if (typeof document !== 'undefined') {
+      document.cookie = `auth_token=${token}; path=/`;
+    }
   }
 
   getToken(): string | null {
-    return storage.get('auth_token');
+    const storedToken = storage.get('auth_token');
+    if (storedToken) {
+      return storedToken;
+    }
+
+    if (typeof document === 'undefined') {
+      return null;
+    }
+
+    const cookieToken = document.cookie
+      .split('; ')
+      .find((row) => row.startsWith(`${this.tokenCookieName}=`))
+      ?.split('=')[1];
+
+    if (cookieToken) {
+      storage.set('auth_token', cookieToken);
+      return cookieToken;
+    }
+
+    return null;
   }
 
   clearAuth(): void {
     storage.remove('auth_token');
+    if (typeof document !== 'undefined') {
+      document.cookie = 'auth_token=; path=/; max-age=0';
+    }
   }
 
   isAuthenticated(): boolean {
@@ -260,6 +312,11 @@ export const authApi = {
     apiClient.verifyAndRegister(data),
   verifyAndRegisterTeamLeader: (data: VerifyAndRegisterTeamLeaderRequest) => 
     apiClient.verifyAndRegisterTeamLeader(data),
+  // Recuperacion de contrasena
+  sendForgotPasswordCode: (data: ForgotPasswordSendCodeRequest) => 
+    apiClient.sendForgotPasswordCode(data),
+  resetPasswordWithCode: (data: ResetPasswordWithCodeRequest) => 
+    apiClient.resetPasswordWithCode(data),
 };
 
 export default apiClient;

@@ -10,58 +10,46 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../ui/card';
-import { useAuth } from '../../hooks/useAuth';
 import { useToastManager } from '../ui/toast-manager';
-import { validateEmail } from '../../lib/utils';
+import { formatApiError, validateEmail } from '../../lib/utils';
+import { authApi } from '../../lib/api';
 
-// Schema de validación para el formulario de login
-const loginSchema = z.object({
+const forgotPasswordSchema = z.object({
   email: z
     .string()
     .min(1, 'El email es requerido')
-    .refine(validateEmail, 'Email inválido'),
-  password: z
-    .string()
-    .min(1, 'La contraseña es requerida'),
+    .refine(validateEmail, 'Email invalido'),
 });
 
-type LoginFormData = z.infer<typeof loginSchema>;
+type ForgotPasswordFormData = z.infer<typeof forgotPasswordSchema>;
 
-export function LoginForm() {
+export function ForgotPasswordForm() {
   const [isLoading, setIsLoading] = useState(false);
-  const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const { login } = useAuth();
   const { toast } = useToastManager();
   const router = useRouter();
 
-  const form = useForm<LoginFormData>({
-    resolver: zodResolver(loginSchema),
+  const form = useForm<ForgotPasswordFormData>({
+    resolver: zodResolver(forgotPasswordSchema),
     defaultValues: {
       email: '',
-      password: '',
     },
   });
 
-  const onSubmit = async (data: LoginFormData) => {
+  const onSubmit = async (data: ForgotPasswordFormData) => {
     try {
       setIsLoading(true);
-      
-      await login(data);
-      
-      toast.success(
-        'Bienvenido',
-        'Has iniciado sesión exitosamente'
-      );
-      setShowForgotPassword(false);
-      
-      // Redirigir al dashboard
-      router.push('/dashboard');
+
+      const response = await authApi.sendForgotPasswordCode({
+        email: data.email,
+      });
+
+      toast.success('Codigo enviado', response.message);
+      router.push(`/forgot-password/reset?email=${encodeURIComponent(data.email)}`);
     } catch (error) {
       toast.error(
-        'Error de autenticación',
-        error instanceof Error ? error.message : 'Credenciales inválidas'
+        'Error al enviar codigo',
+        formatApiError(error)
       );
-      setShowForgotPassword(true);
     } finally {
       setIsLoading(false);
     }
@@ -72,10 +60,10 @@ export function LoginForm() {
       <Card>
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold">
-            Iniciar Sesión
+            Recuperar Contrasena
           </CardTitle>
           <CardDescription>
-            Ingresa tus credenciales para acceder a TaskCodeBack
+            Enviaremos un codigo de verificacion a tu email
           </CardDescription>
         </CardHeader>
 
@@ -92,18 +80,6 @@ export function LoginForm() {
                 disabled={isLoading}
               />
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="password">Contraseña</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Tu contraseña"
-                {...form.register('password')}
-                error={form.formState.errors.password?.message}
-                disabled={isLoading}
-              />
-            </div>
           </CardContent>
 
           <CardFooter className="flex flex-col space-y-4">
@@ -113,25 +89,16 @@ export function LoginForm() {
               isLoading={isLoading}
               disabled={isLoading}
             >
-              {isLoading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
+              {isLoading ? 'Enviando codigo...' : 'Enviar codigo'}
             </Button>
 
-            {showForgotPassword && (
-              <Link
-                href="/forgot-password"
-                className="text-sm font-medium text-primary hover:underline"
-              >
-                Olvidaste tu contrasena?
-              </Link>
-            )}
-
             <div className="text-center text-sm text-muted-foreground">
-              ¿No tienes una cuenta?{' '}
-              <Link 
-                href="/register"
+              Ya recordaste tu contrasena?{' '}
+              <Link
+                href="/login"
                 className="font-medium text-primary hover:underline"
               >
-                Regístrate aquí
+                Inicia sesion
               </Link>
             </div>
           </CardFooter>

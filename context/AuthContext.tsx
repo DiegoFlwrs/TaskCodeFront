@@ -23,6 +23,7 @@ import { formatApiError } from '../lib/utils';
 // Tipos para las acciones del reducer
 type AuthAction = 
   | { type: 'SET_LOADING'; payload: boolean }
+  | { type: 'SET_AUTHENTICATED' }
   | { type: 'SET_USER'; payload: User }
   | { type: 'SET_TOKEN'; payload: string }
   | { type: 'LOGIN_SUCCESS'; payload: { user: User; token: string } }
@@ -45,6 +46,13 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
       return {
         ...state,
         isLoading: action.payload,
+      };
+
+    case 'SET_AUTHENTICATED':
+      return {
+        ...state,
+        isAuthenticated: true,
+        isLoading: false,
       };
 
     case 'SET_USER':
@@ -119,14 +127,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return;
       }
 
+      dispatch({ type: 'SET_AUTHENTICATED' });
+
       // Verificar con el servidor que el token sigue siendo válido
       const user = await authApi.getCurrentUser();
       dispatch({ type: 'SET_USER', payload: user });
     } catch (error) {
-      console.error('Error checking auth status:', error);
-      // Si hay error al verificar, hacer logout
-      dispatch({ type: 'LOGOUT' });
-      authApi.logout();
+      const status = typeof error === 'object' && error !== null && 'status' in error
+        ? (error as { status?: number }).status
+        : undefined;
+
+      if (status === 401 || (error instanceof Error && error.message === 'Sesión expirada')) {
+        dispatch({ type: 'LOGOUT' });
+        authApi.logout();
+        return;
+      }
+
+      console.warn('Error checking auth status:', error);
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
     }

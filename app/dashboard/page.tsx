@@ -5,10 +5,11 @@ import { useRouter } from 'next/navigation';
 import { Header } from '../../components/layout/Header';
 import { DashboardContent } from '../../components/dashboard/DashboardContent';
 import { LoadingSpinner } from '../../components/ui/loading';
+import { Button } from '../../components/ui/button';
 import { useAuth } from '../../hooks/useAuth';
 
 export default function DashboardPage() {
-  const { state } = useAuth();
+  const { state, checkAuthStatus } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -30,6 +31,21 @@ export default function DashboardPage() {
   // Si no está autenticado, no mostrar el dashboard
   if (!state.isAuthenticated) {
     return null;
+  }
+
+  if (!state.user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <p className="text-sm text-muted-foreground">
+            No se pudo cargar tu perfil. Reintenta.
+          </p>
+          <Button onClick={checkAuthStatus}>
+            Reintentar
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   return (

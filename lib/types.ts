@@ -63,6 +63,22 @@ export interface VerifyAndRegisterTeamLeaderRequest extends VerifyAndRegisterReq
   equipoDescripcion?: string;
 }
 
+// Recuperacion de contrasena
+export interface ForgotPasswordSendCodeRequest {
+  email: string;
+}
+
+export interface ResetPasswordWithCodeRequest {
+  email: string;
+  verificationCode: string;
+  newPassword: string;
+  confirmPassword: string;
+}
+
+export interface ForgotPasswordResponse {
+  message: string;
+}
+
 export interface VerificationState {
   step: 'email' | 'verification';
   email: string;
@@ -129,6 +145,8 @@ export const API_CONFIG = {
       SEND_VERIFICATION_CODE: '/api/auth/send-verification-code',
       VERIFY_AND_REGISTER: '/api/auth/verify-and-register',
       VERIFY_AND_REGISTER_TEAM_LEADER: '/api/auth/verify-and-register-team-leader',
+      FORGOT_PASSWORD_SEND_CODE: '/api/auth/forgot-password/send-code',
+      FORGOT_PASSWORD_RESET: '/api/auth/forgot-password/reset',
     },
   },
 } as const;
