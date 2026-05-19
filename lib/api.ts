@@ -21,7 +21,7 @@ class ApiClient {
   private tokenCookieName = 'auth_token';
   
   // Helper para hacer peticiones HTTP
-  private async request<T>(
+  async request<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
@@ -58,7 +58,7 @@ class ApiClient {
       const response = await fetch(url, config);
       
       // Si el token expiró, limpiar storage y redirigir al login
-      if (response.status === 401 && !authEndpoints.has(endpoint)) {
+      if (response.status === 401 && !authEndpoints.has(endpoint as never)) {
         this.clearAuth();
         if (typeof window !== 'undefined') {
           window.location.href = '/login';
