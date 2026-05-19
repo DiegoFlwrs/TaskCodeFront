@@ -2,7 +2,7 @@
 
 import { ReactNode, useState } from 'react';
 import { Sidebar } from '../../components/dashboard/Sidebar';
-import { DashboardTopBar } from '../../components/dashboard/DashboardTopBar';
+import { DashboardTopBar } from './DashboardTopBar';
 
 interface DashboardLayoutInnerProps {
   children: ReactNode;

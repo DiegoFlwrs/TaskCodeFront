@@ -41,9 +41,9 @@ export function DashboardTopBar() {
       <h1 className="text-lg font-semibold text-foreground">{title}</h1>
 
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" className="text-muted-foreground">
+        {/* <Button variant="ghost" size="icon" className="text-muted-foreground">
           <Bell className="h-5 w-5" />
-        </Button>
+        </Button> */}
 
         {user && (
           <div className="flex items-center gap-3 pl-3 border-l">

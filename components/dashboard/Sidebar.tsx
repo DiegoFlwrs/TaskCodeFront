@@ -51,11 +51,11 @@ const navItems = [
     href: '/dashboard/reports',
     icon: BarChart2,
   },
-  {
-    label: 'Configuración',
-    href: '/dashboard/settings',
-    icon: Settings,
-  },
+//   {
+//     label: 'Configuración',
+//     href: '/dashboard/settings',
+//     icon: Settings,
+//   },
 ];
 
 interface SidebarProps {
