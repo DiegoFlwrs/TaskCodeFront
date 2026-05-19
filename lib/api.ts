@@ -9,15 +9,19 @@ import {
   SendVerificationRequest,
   VerificationResponse,
   VerifyAndRegisterRequest,
-  VerifyAndRegisterTeamLeaderRequest
+  VerifyAndRegisterTeamLeaderRequest,
+  ForgotPasswordSendCodeRequest,
+  ResetPasswordWithCodeRequest,
+  ForgotPasswordResponse
 } from './types';
 import { storage, tokenUtils } from './utils';
 
 class ApiClient {
   private baseURL = API_CONFIG.BASE_URL;
+  private tokenCookieName = 'auth_token';
   
   // Helper para hacer peticiones HTTP
-  private async request<T>(
+  async request<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
@@ -29,6 +33,8 @@ class ApiClient {
       API_CONFIG.ENDPOINTS.AUTH.SEND_VERIFICATION_CODE,
       API_CONFIG.ENDPOINTS.AUTH.VERIFY_AND_REGISTER,
       API_CONFIG.ENDPOINTS.AUTH.VERIFY_AND_REGISTER_TEAM_LEADER,
+      API_CONFIG.ENDPOINTS.AUTH.FORGOT_PASSWORD_SEND_CODE,
+      API_CONFIG.ENDPOINTS.AUTH.FORGOT_PASSWORD_RESET,
     ]);
     
     // Headers por defecto
@@ -52,7 +58,7 @@ class ApiClient {
       const response = await fetch(url, config);
       
       // Si el token expiró, limpiar storage y redirigir al login
-      if (response.status === 401 && !authEndpoints.has(endpoint)) {
+      if (response.status === 401 && !authEndpoints.has(endpoint as never)) {
         this.clearAuth();
         if (typeof window !== 'undefined') {
           window.location.href = '/login';
@@ -78,7 +84,7 @@ class ApiClient {
 
       return await response.json();
     } catch (error) {
-      console.error('API Error:', error);
+      console.warn('API Error:', error);
       
       // Si es un error de red
       if (error instanceof TypeError) {
@@ -99,9 +105,12 @@ class ApiClient {
       }
     );
 
-    // Guardar token en localStorage
+    // Guardar token en cookie y user en cache
     if (response.token) {
       this.setToken(response.token);
+    }
+    if (response.user) {
+      this.saveUser(response.user);
     }
 
     return response;
@@ -116,9 +125,12 @@ class ApiClient {
       }
     );
 
-    // Guardar token en localStorage
+    // Guardar token en cookie y user en cache
     if (response.token) {
       this.setToken(response.token);
+    }
+    if (response.user) {
+      this.saveUser(response.user);
     }
 
     return response;
@@ -133,25 +145,19 @@ class ApiClient {
       }
     );
 
-    // Guardar token en localStorage
+    // Guardar token en cookie y user en cache
     if (response.token) {
       this.setToken(response.token);
+    }
+    if (response.user) {
+      this.saveUser(response.user);
     }
 
     return response;
   }
 
-  async logout(): Promise<void> {
-    try {
-      await this.request(API_CONFIG.ENDPOINTS.AUTH.LOGOUT, {
-        method: 'POST',
-      });
-    } catch (error) {
-      console.warn('Error during logout:', error);
-    } finally {
-      // Siempre limpiar el storage local
-      this.clearAuth();
-    }
+  logout(): void {
+    this.clearAuth();
   }
 
   async getCurrentUser(): Promise<User> {
@@ -184,9 +190,12 @@ class ApiClient {
       }
     );
 
-    // Guardar token en localStorage
+    // Guardar token en cookie y user en cache
     if (response.token) {
       this.setToken(response.token);
+    }
+    if (response.user) {
+      this.saveUser(response.user);
     }
 
     return response;
@@ -201,25 +210,77 @@ class ApiClient {
       }
     );
 
-    // Guardar token en localStorage
+    // Guardar token en cookie y user en cache
     if (response.token) {
       this.setToken(response.token);
+    }
+    if (response.user) {
+      this.saveUser(response.user);
     }
 
     return response;
   }
 
+  // Metodos de recuperacion de contrasena
+  async sendForgotPasswordCode(data: ForgotPasswordSendCodeRequest): Promise<ForgotPasswordResponse> {
+    return this.request<ForgotPasswordResponse>(
+      API_CONFIG.ENDPOINTS.AUTH.FORGOT_PASSWORD_SEND_CODE,
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    );
+  }
+
+  async resetPasswordWithCode(data: ResetPasswordWithCodeRequest): Promise<ForgotPasswordResponse> {
+    return this.request<ForgotPasswordResponse>(
+      API_CONFIG.ENDPOINTS.AUTH.FORGOT_PASSWORD_RESET,
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    );
+  }
+
   // Métodos de gestión de tokens
   setToken(token: string): void {
-    storage.set('auth_token', token);
+    if (typeof document === 'undefined') return;
+    // Calcular max-age desde el exp del JWT
+    const payload = tokenUtils.decode(token);
+    const maxAge = payload?.exp
+      ? payload.exp - Math.floor(Date.now() / 1000)
+      : 86400;
+    document.cookie = `auth_token=${token}; path=/; max-age=${maxAge}; SameSite=Strict`;
   }
 
   getToken(): string | null {
-    return storage.get('auth_token');
+    if (typeof document === 'undefined') return null;
+    const match = document.cookie
+      .split('; ')
+      .find((row) => row.startsWith(`${this.tokenCookieName}=`));
+    return match ? match.split('=')[1] : null;
   }
 
   clearAuth(): void {
+    if (typeof document !== 'undefined') {
+      document.cookie = 'auth_token=; path=/; max-age=0; SameSite=Strict';
+    }
     storage.remove('auth_token');
+    storage.remove('auth_user');
+  }
+
+  saveUser(user: User): void {
+    storage.set('auth_user', JSON.stringify(user));
+  }
+
+  loadUser(): User | null {
+    const raw = storage.get('auth_user');
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as User;
+    } catch {
+      return null;
+    }
   }
 
   isAuthenticated(): boolean {
@@ -250,6 +311,8 @@ export const authApi = {
   registerTeamLeader: (userData: RegisterTeamLeaderRequest) => 
     apiClient.registerTeamLeader(userData),
   logout: () => apiClient.logout(),
+  saveUser: (user: User) => apiClient.saveUser(user),
+  loadUser: () => apiClient.loadUser(),
   getCurrentUser: () => apiClient.getCurrentUser(),
   generateTeamCode: () => apiClient.generateTeamCode(),
   isAuthenticated: () => apiClient.isAuthenticated(),
@@ -260,6 +323,11 @@ export const authApi = {
     apiClient.verifyAndRegister(data),
   verifyAndRegisterTeamLeader: (data: VerifyAndRegisterTeamLeaderRequest) => 
     apiClient.verifyAndRegisterTeamLeader(data),
+  // Recuperacion de contrasena
+  sendForgotPasswordCode: (data: ForgotPasswordSendCodeRequest) => 
+    apiClient.sendForgotPasswordCode(data),
+  resetPasswordWithCode: (data: ResetPasswordWithCodeRequest) => 
+    apiClient.resetPasswordWithCode(data),
 };
 
 export default apiClient;

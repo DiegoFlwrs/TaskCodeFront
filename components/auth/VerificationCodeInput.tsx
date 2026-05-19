@@ -52,23 +52,48 @@ export function VerificationCodeInput({
   }, [code, length, onComplete, onChange]);
 
   const handleChange = (index: number, value: string) => {
-    // Solo permitir números
-    if (value && !/^\d$/.test(value)) {
+    const chars = value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+
+    const newCode = [...code];
+
+    if (!chars) {
+      newCode[index] = '';
+      setCode(newCode);
+      setIsError(false);
       return;
     }
 
-    const newCode = [...code];
-    newCode[index] = value;
+    if (chars.length === 1) {
+      newCode[index] = chars;
+      setCode(newCode);
+      setIsError(false);
+
+      // Auto-avanzar al siguiente campo
+      if (index < length - 1) {
+        inputRefs.current[index + 1]?.focus();
+      }
+
+      return;
+    }
+
+    // Si entran multiples digitos, repartirlos desde el indice actual
+    for (let i = 0; i < chars.length && index + i < length; i++) {
+      newCode[index + i] = chars[i];
+    }
+
     setCode(newCode);
     setIsError(false);
 
-    // Auto-avanzar al siguiente campo
-    if (value && index < length - 1) {
-      inputRefs.current[index + 1]?.focus();
-    }
+    const nextIndex = Math.min(index + chars.length, length - 1);
+    inputRefs.current[nextIndex]?.focus();
   };
 
   const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key.length === 1 && !/^[a-zA-Z0-9]$/.test(e.key)) {
+      e.preventDefault();
+      return;
+    }
+
     if (e.key === 'Backspace' && !code[index] && index > 0) {
       // Retroceder al campo anterior si el actual está vacío
       inputRefs.current[index - 1]?.focus();
@@ -83,14 +108,15 @@ export function VerificationCodeInput({
     e.preventDefault();
     const pastedData = e.clipboardData.getData('text/plain').slice(0, length);
     
-    // Solo procesar si son todos números
-    if (!/^\d+$/.test(pastedData)) {
+    const sanitized = pastedData.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+
+    if (!sanitized) {
       return;
     }
 
     const newCode = new Array(length).fill('');
-    for (let i = 0; i < Math.min(pastedData.length, length); i++) {
-      newCode[i] = pastedData[i];
+    for (let i = 0; i < Math.min(sanitized.length, length); i++) {
+      newCode[i] = sanitized[i];
     }
     
     setCode(newCode);
@@ -119,8 +145,8 @@ export function VerificationCodeInput({
             inputRefs.current[index] = el;
           }}
           type="text"
-          inputMode="numeric"
-          pattern="\d"
+          inputMode="text"
+          pattern="[A-Za-z0-9]"
           maxLength={1}
           value={digit}
           onChange={(e) => handleChange(index, e.target.value)}

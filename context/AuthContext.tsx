@@ -23,6 +23,7 @@ import { formatApiError } from '../lib/utils';
 // Tipos para las acciones del reducer
 type AuthAction = 
   | { type: 'SET_LOADING'; payload: boolean }
+  | { type: 'SET_AUTHENTICATED' }
   | { type: 'SET_USER'; payload: User }
   | { type: 'SET_TOKEN'; payload: string }
   | { type: 'LOGIN_SUCCESS'; payload: { user: User; token: string } }
@@ -45,6 +46,13 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
       return {
         ...state,
         isLoading: action.payload,
+      };
+
+    case 'SET_AUTHENTICATED':
+      return {
+        ...state,
+        isAuthenticated: true,
+        isLoading: false,
       };
 
     case 'SET_USER':
@@ -111,24 +119,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Verificar el estado de autenticación al cargar la app
   const checkAuthStatus = async () => {
-    try {
-      dispatch({ type: 'SET_LOADING', payload: true });
+    dispatch({ type: 'SET_LOADING', payload: true });
 
-      if (!authApi.isAuthenticated()) {
-        dispatch({ type: 'LOGOUT' });
-        return;
-      }
-
-      // Verificar con el servidor que el token sigue siendo válido
-      const user = await authApi.getCurrentUser();
-      dispatch({ type: 'SET_USER', payload: user });
-    } catch (error) {
-      console.error('Error checking auth status:', error);
-      // Si hay error al verificar, hacer logout
+    if (!authApi.isAuthenticated()) {
       dispatch({ type: 'LOGOUT' });
-      authApi.logout();
-    } finally {
-      dispatch({ type: 'SET_LOADING', payload: false });
+      return;
+    }
+
+    // Token válido en cookie — restaurar user desde cache local sin llamar al backend
+    const cachedUser = authApi.loadUser();
+    if (cachedUser) {
+      dispatch({ type: 'SET_USER', payload: cachedUser });
+    } else {
+      dispatch({ type: 'SET_AUTHENTICATED' });
     }
   };
 
@@ -200,13 +203,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Logout
   const logout = async () => {
-    try {
-      dispatch({ type: 'SET_LOADING', payload: true });
-      await authApi.logout();
-    } catch (error) {
-      console.error('Error during logout:', error);
-    } finally {
-      dispatch({ type: 'LOGOUT' });
+    authApi.logout();
+    dispatch({ type: 'LOGOUT' });
+    if (typeof window !== 'undefined') {
+      window.location.href = '/login';
     }
   };
 

@@ -17,8 +17,8 @@ export default function RegisterPage() {
     }
   }, [state.isAuthenticated, state.isLoading, router]);
 
-  // Mostrar loading mientras se verifica el estado de autenticación
-  if (state.isLoading) {
+  // Mostrar loading solo cuando ya esta autenticado
+  if (state.isLoading && state.isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <LoadingSpinner size="lg" />
