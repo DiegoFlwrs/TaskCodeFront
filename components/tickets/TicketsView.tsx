@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { cn } from '../../lib/utils';
 import { useToastManager } from '../ui/toast-manager';
 import { useTickets } from '../../hooks/useTickets';
+import apiClient from '../../lib/api';
 import {
   Ticket, TicketFormData, TicketPriority, TicketStatus,
   TICKET_PRIORITY_LABELS, TICKET_PRIORITY_COLORS,
@@ -25,6 +26,7 @@ import {
 
 // ---- Schema ----
 const schema = z.object({
+  teamId: z.string().optional(),
   codigo: z.string().min(1, 'Requerido'),
   nombre: z.string().min(1, 'Requerido'),
   descripcion: z.string(),
@@ -37,28 +39,32 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
+interface TeamOption { id: string; nombre: string; }
+
 // ---- Ticket Form Modal ----
 function TicketModal({
-  open, onClose, onSave, ticket,
+  open, onClose, onSave, ticket, teams,
 }: {
   open: boolean; onClose: () => void;
   onSave: (data: TicketFormData) => void; ticket?: Ticket | null;
+  teams: TeamOption[];
 }) {
   const isEditing = Boolean(ticket);
   const form = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: ticket ?? {
-      codigo: '', nombre: '', descripcion: '', asignadoPor: '',
+      teamId: '', codigo: '', nombre: '', descripcion: '', asignadoPor: '',
       fechaInicio: '', fechaFin: '', priority: 'media', status: 'activo',
     },
   });
 
   useEffect(() => {
     form.reset(ticket ?? {
+      teamId: teams.length > 0 ? teams[0].id : '',
       codigo: '', nombre: '', descripcion: '', asignadoPor: '',
       fechaInicio: '', fechaFin: '', priority: 'media', status: 'activo',
     });
-  }, [ticket, open, form]);
+  }, [ticket, open, form, teams]);
 
   return (
     <Dialog.Root open={open} onOpenChange={(v) => !v && onClose()}>
@@ -82,6 +88,19 @@ function TicketModal({
           </div>
 
           <form onSubmit={form.handleSubmit((d) => { onSave(d as TicketFormData); onClose(); })} className="space-y-4">
+            {teams.length > 0 && (
+              <div className="space-y-1.5">
+                <Label>Equipo</Label>
+                <select
+                  {...form.register('teamId')}
+                  className="w-full h-9 px-3 rounded-md border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  {teams.map((t) => (
+                    <option key={t.id} value={t.id}>{t.nombre}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label>Código *</Label>
@@ -167,11 +186,18 @@ type FilterStatus = 'todos' | TicketStatus;
 export function TicketsView() {
   const { tickets, addTicket, updateTicket, deleteTicket } = useTickets();
   const { toast } = useToastManager();
+  const [teams, setTeams] = useState<TeamOption[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTicket, setEditingTicket] = useState<Ticket | null>(null);
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('todos');
   const [search, setSearch] = useState('');
   const [completeConfirmTicket, setCompleteConfirmTicket] = useState<Ticket | null>(null);
+
+  useEffect(() => {
+    apiClient.request<TeamOption[]>('/api/teams')
+      .then(setTeams)
+      .catch(() => {});
+  }, []);
 
   // Alert counts
   const alertCount = tickets.filter((t) => {
@@ -316,17 +342,23 @@ export function TicketsView() {
         <Card className="border shadow-none overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-muted/50">
-                  {['Código', 'Nombre', 'Asignado por', 'Prioridad', 'Estado', 'Inicio', 'Fin', 'Tiempo', ''].map((h) => (
-                    <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((ticket) => (
+              {(() => {
+                const showTeam = filtered.some((t) => t.teamNombre);
+                const headers = ['Código', 'Nombre', ...(showTeam ? ['Equipo'] : []), 'Asignado por', 'Prioridad', 'Estado', 'Inicio', 'Fin', 'Tiempo', ''];
+                return (
+                  <>
+                    <thead>
+                      <tr className="border-b bg-muted/50">
+                        {headers.map((h) => (
+                          <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">
+                            {h}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                {filtered.map((ticket) => {
+                  return (
                   <tr key={ticket.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-3">
                       <code className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded font-semibold">{ticket.codigo}</code>
@@ -339,6 +371,11 @@ export function TicketsView() {
                         )}
                       </div>
                     </td>
+                    {showTeam && (
+                      <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">
+                        {ticket.teamNombre || '—'}
+                      </td>
+                    )}
                     <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">
                       {ticket.asignadoPor || '—'}
                     </td>
@@ -377,8 +414,12 @@ export function TicketsView() {
                       </div>
                     </td>
                   </tr>
-                ))}
-              </tbody>
+                  );
+                })}
+                    </tbody>
+                  </>
+                );
+              })()}
             </table>
           </div>
         </Card>
@@ -389,6 +430,7 @@ export function TicketsView() {
         onClose={() => { setModalOpen(false); setEditingTicket(null); }}
         onSave={handleSave}
         ticket={editingTicket}
+        teams={teams}
       />
 
       {/* Complete confirm dialog */}

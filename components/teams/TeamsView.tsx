@@ -18,6 +18,7 @@ import {
   User,
   X,
   Loader2,
+  BarChart3,
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -27,6 +28,9 @@ import { cn } from '../../lib/utils';
 import { validatePassword } from '../../lib/utils';
 import { useToastManager } from '../ui/toast-manager';
 import apiClient from '../../lib/api';
+import { useUser } from '../../hooks/useAuth';
+import { TeamStatsModal } from './TeamStatsModal';
+import type { StatsMember } from './TeamStatsModal';
 
 // ---- Types ----
 type MemberRole = 'LEADER' | 'DEVELOPER' | 'QA' | 'DESIGNER' | 'DEVOPS';
@@ -48,6 +52,16 @@ interface Team {
   members: TeamMember[];
   createdAt: string;
 }
+
+interface SystemUser {
+  id: string;
+  nombre: string;
+  email: string;
+}
+
+type AddMemberPayload =
+  | { mode: 'new'; nombre: string; email: string; role: MemberRole; status: MemberStatus; passwordMode?: string; password?: string; confirmPassword?: string }
+  | { mode: 'existing'; existingUserId: string; role: MemberRole; status: MemberStatus };
 
 const ROLE_LABELS: Record<MemberRole, string> = {
   LEADER: 'Líder',
@@ -112,22 +126,37 @@ function MemberModal({
   onClose,
   onSave,
   member,
+  currentMembers,
 }: {
   open: boolean;
   onClose: () => void;
-  onSave: (data: MemberFormData) => Promise<void>;
+  onSave: (payload: AddMemberPayload) => Promise<void>;
   member?: TeamMember | null;
+  currentMembers: TeamMember[];
 }) {
+  const [tab, setTab] = useState<'existing' | 'new'>('existing');
   const [step, setStep] = useState<'form' | 'confirm'>('form');
   const [pendingData, setPendingData] = useState<MemberFormData | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Existing-user tab state
+  const [systemUsers, setSystemUsers] = useState<SystemUser[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState('');
+  const [existingRole, setExistingRole] = useState<MemberRole>('DEVELOPER');
+  const [existingStatus, setExistingStatus] = useState<MemberStatus>('activo');
+  const [existingError, setExistingError] = useState('');
+
   const form = useForm<MemberFormData>({
     resolver: zodResolver(memberSchema),
     defaultValues: member
-      ? { ...member, passwordMode: undefined, password: '' }
+      ? { ...member, passwordMode: undefined, password: '', confirmPassword: '' }
       : { nombre: '', email: '', role: 'DEVELOPER', status: 'activo', passwordMode: 'auto', password: '', confirmPassword: '' },
   });
+
+  const passwordMode = form.watch('passwordMode');
+  const passwordValue = form.watch('password') ?? '';
+  const pwValidation = validatePassword(passwordValue);
 
   useEffect(() => {
     if (open) {
@@ -138,12 +167,24 @@ function MemberModal({
       );
       setStep('form');
       setPendingData(null);
+      setSelectedUserId('');
+      setExistingRole('DEVELOPER');
+      setExistingStatus('activo');
+      setExistingError('');
+      if (!member) {
+        setTab('existing');
+        setUsersLoading(true);
+        apiClient.request<SystemUser[] | SystemUser>('/api/users')
+          .then((data) => setSystemUsers(Array.isArray(data) ? data : [data]))
+          .catch(() => setSystemUsers([]))
+          .finally(() => setUsersLoading(false));
+      }
     }
   }, [open, member]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const passwordMode = form.watch('passwordMode');
-  const passwordValue = form.watch('password') ?? '';
-  const pwValidation = validatePassword(passwordValue);
+  const availableUsers = systemUsers.filter(
+    (u) => !currentMembers.some((m) => m.id === u.id)
+  );
 
   const handleClose = () => {
     if (loading) return;
@@ -153,28 +194,53 @@ function MemberModal({
     onClose();
   };
 
-  const handleSubmit = form.handleSubmit((data) => {
+  const handleAddExisting = async () => {
+    if (!selectedUserId) { setExistingError('Selecciona un usuario'); return; }
+    setExistingError('');
+    setLoading(true);
+    try {
+      await onSave({ mode: 'existing', existingUserId: selectedUserId, role: existingRole, status: existingStatus });
+      handleClose();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmitNew = form.handleSubmit((data) => {
     if (!member) {
       setPendingData(data);
       setStep('confirm');
     } else {
       void (async () => {
         setLoading(true);
-        try { await onSave(data); handleClose(); }
+        try { await onSave({ mode: 'new', ...data }); handleClose(); }
         finally { setLoading(false); }
       })();
     }
   });
+
+  const title = member
+    ? 'Editar miembro'
+    : step === 'confirm'
+    ? 'Confirmar creación'
+    : 'Agregar miembro';
 
   return (
     <Dialog.Root open={open} onOpenChange={(v) => !v && handleClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50" />
         <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-md bg-card rounded-xl border shadow-xl p-6 overflow-hidden">
+          {loading && (
+            <div className="absolute inset-0 bg-card/90 backdrop-blur-sm rounded-xl flex flex-col items-center justify-center gap-3 z-10">
+              <Loader2 className="w-10 h-10 text-primary animate-spin" />
+              <p className="text-sm font-medium text-muted-foreground">
+                {tab === 'existing' ? 'Asociando usuario...' : 'Creando usuario...'}
+              </p>
+            </div>
+          )}
+
           <div className="flex items-center justify-between mb-5">
-            <Dialog.Title className="text-base font-semibold">
-              {member ? 'Editar miembro' : step === 'confirm' ? 'Confirmar creación' : 'Agregar miembro'}
-            </Dialog.Title>
+            <Dialog.Title className="text-base font-semibold">{title}</Dialog.Title>
             <Dialog.Close asChild>
               <button className="p-1.5 rounded-md text-muted-foreground hover:bg-muted">
                 <X className="h-4 w-4" />
@@ -182,13 +248,28 @@ function MemberModal({
             </Dialog.Close>
           </div>
 
-          {loading && (
-            <div className="absolute inset-0 bg-card/90 backdrop-blur-sm rounded-xl flex flex-col items-center justify-center gap-3 z-10">
-              <Loader2 className="w-10 h-10 text-primary animate-spin" />
-              <p className="text-sm font-medium text-muted-foreground">Creando usuario...</p>
+          {/* Tabs — only when adding a new member */}
+          {!member && step === 'form' && (
+            <div className="flex rounded-lg border overflow-hidden mb-5 text-sm">
+              {(['existing', 'new'] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setTab(t)}
+                  className={cn(
+                    'flex-1 py-2 font-medium transition-colors',
+                    tab === t
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted/40 text-muted-foreground hover:bg-muted'
+                  )}
+                >
+                  {t === 'existing' ? 'Usuario existente' : 'Nuevo usuario'}
+                </button>
+              ))}
             </div>
           )}
 
+          {/* Confirm step */}
           {step === 'confirm' && pendingData ? (
             <div className="space-y-5">
               <p className="text-sm text-muted-foreground leading-relaxed">
@@ -207,7 +288,7 @@ function MemberModal({
                   disabled={loading}
                   onClick={async () => {
                     setLoading(true);
-                    try { await onSave(pendingData); handleClose(); }
+                    try { await onSave({ mode: 'new', ...pendingData }); handleClose(); }
                     finally { setLoading(false); }
                   }}
                 >
@@ -215,8 +296,70 @@ function MemberModal({
                 </Button>
               </div>
             </div>
+
+          /* Tab: existing user */
+          ) : !member && tab === 'existing' ? (
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>Usuario</Label>
+                {usersLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Cargando usuarios...
+                  </div>
+                ) : availableUsers.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-2">
+                    No hay usuarios disponibles para agregar.
+                  </p>
+                ) : (
+                  <select
+                    value={selectedUserId}
+                    onChange={(e) => { setSelectedUserId(e.target.value); setExistingError(''); }}
+                    className="w-full h-9 px-3 rounded-md border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    <option value="">Seleccionar usuario...</option>
+                    {availableUsers.map((u) => (
+                      <option key={u.id} value={u.id}>{u.nombre} — {u.email}</option>
+                    ))}
+                  </select>
+                )}
+                {existingError && <p className="text-xs text-destructive">{existingError}</p>}
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>Rol</Label>
+                  <select
+                    value={existingRole}
+                    onChange={(e) => setExistingRole(e.target.value as MemberRole)}
+                    className="w-full h-9 px-3 rounded-md border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    {(Object.entries(ROLE_LABELS) as [MemberRole, string][]).map(([v, l]) => (
+                      <option key={v} value={v}>{l}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Estado</Label>
+                  <select
+                    value={existingStatus}
+                    onChange={(e) => setExistingStatus(e.target.value as MemberStatus)}
+                    className="w-full h-9 px-3 rounded-md border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    <option value="activo">Activo</option>
+                    <option value="inactivo">Inactivo</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex gap-3 justify-end pt-1">
+                <Button type="button" variant="outline" onClick={handleClose}>Cancelar</Button>
+                <Button type="button" disabled={!selectedUserId} onClick={handleAddExisting}>
+                  Agregar
+                </Button>
+              </div>
+            </div>
+
+          /* Tab: new user / edit */
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmitNew} className="space-y-4">
               <div className="space-y-1.5">
                 <Label>Nombre</Label>
                 <Input
@@ -258,27 +401,16 @@ function MemberModal({
                   </select>
                 </div>
               </div>
-
               {!member && (
                 <div className="space-y-2">
                   <Label>Contraseña</Label>
                   <div className="flex flex-col gap-2.5 rounded-lg border p-3 bg-muted/30">
                     <label className="flex items-center gap-2.5 cursor-pointer">
-                      <input
-                        type="radio"
-                        value="auto"
-                        {...form.register('passwordMode')}
-                        className="accent-primary"
-                      />
+                      <input type="radio" value="auto" {...form.register('passwordMode')} className="accent-primary" />
                       <span className="text-sm">Generar automáticamente</span>
                     </label>
                     <label className="flex items-center gap-2.5 cursor-pointer">
-                      <input
-                        type="radio"
-                        value="manual"
-                        {...form.register('passwordMode')}
-                        className="accent-primary"
-                      />
+                      <input type="radio" value="manual" {...form.register('passwordMode')} className="accent-primary" />
                       <span className="text-sm">Especificar contraseña</span>
                     </label>
                   </div>
@@ -312,7 +444,6 @@ function MemberModal({
                   )}
                 </div>
               )}
-
               <div className="flex gap-3 justify-end pt-1">
                 <Button type="button" variant="outline" onClick={handleClose}>Cancelar</Button>
                 <Button type="submit">{member ? 'Guardar' : 'Agregar'}</Button>
@@ -396,6 +527,8 @@ function TeamCard({
   onAddMember,
   onEditMember,
   onDeleteMember,
+  onStats,
+  readOnly = false,
 }: {
   team: Team;
   onEdit: () => void;
@@ -403,6 +536,8 @@ function TeamCard({
   onAddMember: () => void;
   onEditMember: (m: TeamMember) => void;
   onDeleteMember: (id: string, nombre: string) => void;
+  onStats: () => void;
+  readOnly?: boolean;
 }) {
   const [expanded, setExpanded] = useState(true);
   const { toast } = useToastManager();
@@ -428,12 +563,19 @@ function TeamCard({
             </div>
           </div>
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={onEdit}>
-              <Pencil className="h-3.5 w-3.5" />
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={onStats} title="Estadísticas">
+              <BarChart3 className="h-3.5 w-3.5" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={onDelete}>
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
+            {!readOnly && (
+              <>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={onEdit}>
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={onDelete}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </>
+            )}
           </div>
         </div>
 
@@ -452,7 +594,7 @@ function TeamCard({
 
       <CardContent className="pt-0 space-y-3">
         {/* Members header */}
-        <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between">
           <button
             onClick={() => setExpanded((e) => !e)}
             className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
@@ -460,10 +602,12 @@ function TeamCard({
             {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             Miembros
           </button>
-          <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={onAddMember}>
-            <UserPlus className="h-3.5 w-3.5" />
-            Agregar
-          </Button>
+          {!readOnly && (
+            <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={onAddMember}>
+              <UserPlus className="h-3.5 w-3.5" />
+              Agregar
+            </Button>
+          )}
         </div>
 
         {/* Members list */}
@@ -509,12 +653,16 @@ function TeamCard({
                       </td>
                       <td className="px-3 py-2.5">
                         <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" onClick={() => onEditMember(m)}>
-                            <Pencil className="h-3 w-3" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive" onClick={() => onDeleteMember(m.id, m.nombre)}>
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
+                          {!readOnly && (
+                            <>
+                              <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" onClick={() => onEditMember(m)}>
+                                <Pencil className="h-3 w-3" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive" onClick={() => onDeleteMember(m.id, m.nombre)}>
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -532,6 +680,7 @@ function TeamCard({
 // ---- Main TeamsView ----
 export function TeamsView() {
   const { toast } = useToastManager();
+  const { teamInfo } = useUser();
 
   const [teams, setTeams] = useState<Team[]>([]);
 
@@ -545,12 +694,18 @@ export function TeamsView() {
   }, []);
 
   useEffect(() => { fetchTeams(); }, [fetchTeams]);
+
+  // If user belongs to a team, show only that team; otherwise show all
+  const displayedTeams = teamInfo
+    ? teams.filter((t) => t.id === String(teamInfo.id))
+    : teams;
   const [teamModalOpen, setTeamModalOpen] = useState(false);
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
   const [memberModalOpen, setMemberModalOpen] = useState(false);
   const [targetTeamId, setTargetTeamId] = useState<string | null>(null);
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
   const [deleteMemberConfirm, setDeleteMemberConfirm] = useState<{ teamId: string; memberId: string; nombre: string } | null>(null);
+  const [statsTeam, setStatsTeam] = useState<{ id: string; nombre: string; members: StatsMember[] } | null>(null);
 
   const handleSaveTeam = async (data: TeamFormData) => {
     try {
@@ -597,13 +752,13 @@ export function TeamsView() {
     setMemberModalOpen(true);
   };
 
-  const handleSaveMember = async (data: MemberFormData) => {
+  const handleSaveMember = async (payload: AddMemberPayload) => {
     if (!targetTeamId) return;
     try {
       if (editingMember) {
         const updated = await apiClient.request<TeamMember>(
           `/api/teams/${targetTeamId}/members/${editingMember.id}`,
-          { method: 'PUT', body: JSON.stringify(data) }
+          { method: 'PUT', body: JSON.stringify(payload) }
         );
         setTeams((prev) =>
           prev.map((t) =>
@@ -612,18 +767,30 @@ export function TeamsView() {
               : { ...t, members: t.members.map((m) => (m.id === editingMember.id ? updated : m)) }
           )
         );
-      } else {
+        toast.success('Miembro actualizado', editingMember.nombre);
+      } else if (payload.mode === 'existing') {
         const newMember = await apiClient.request<TeamMember>(
           `/api/teams/${targetTeamId}/members`,
-          { method: 'POST', body: JSON.stringify(data) }
+          { method: 'POST', body: JSON.stringify({ existingUserId: payload.existingUserId, role: payload.role, status: payload.status }) }
         );
         setTeams((prev) =>
           prev.map((t) =>
             t.id !== targetTeamId ? t : { ...t, members: [...t.members, newMember] }
           )
         );
+        toast.success('Miembro agregado', newMember.nombre);
+      } else {
+        const newMember = await apiClient.request<TeamMember>(
+          `/api/teams/${targetTeamId}/members`,
+          { method: 'POST', body: JSON.stringify(payload) }
+        );
+        setTeams((prev) =>
+          prev.map((t) =>
+            t.id !== targetTeamId ? t : { ...t, members: [...t.members, newMember] }
+          )
+        );
+        toast.success('Miembro creado', newMember.nombre);
       }
-      toast.success(editingMember ? 'Miembro actualizado' : 'Miembro agregado', data.nombre);
     } catch {
       toast.error('Error', 'No se pudo guardar el miembro');
     }
@@ -658,39 +825,43 @@ export function TeamsView() {
             Gestiona tus equipos y sus miembros
           </p>
         </div>
-        <Button
-          className="gap-2"
-          onClick={() => {
-            setEditingTeam(null);
-            setTeamModalOpen(true);
-          }}
-        >
-          <Plus className="h-4 w-4" />
-          Nuevo equipo
-        </Button>
+        {!teamInfo && (
+          <Button
+            className="gap-2"
+            onClick={() => {
+              setEditingTeam(null);
+              setTeamModalOpen(true);
+            }}
+          >
+            <Plus className="h-4 w-4" />
+            Nuevo equipo
+          </Button>
+        )}
       </div>
 
       {/* Teams list */}
-      {teams.length === 0 ? (
+      {displayedTeams.length === 0 ? (
         <Card className="border shadow-none">
           <CardContent className="py-16 text-center text-muted-foreground">
             <Users className="h-12 w-12 mx-auto mb-3 opacity-30" />
-            <p className="text-sm font-medium">Sin equipos creados</p>
-            <p className="text-xs mt-1">Crea tu primer equipo para comenzar</p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-4 gap-2"
-              onClick={() => setTeamModalOpen(true)}
-            >
-              <Plus className="h-4 w-4" />
-              Crear equipo
-            </Button>
+            <p className="text-sm font-medium">{teamInfo ? 'No se encontró tu equipo' : 'Sin equipos creados'}</p>
+            <p className="text-xs mt-1">{teamInfo ? 'Contacta a tu líder de equipo' : 'Crea tu primer equipo para comenzar'}</p>
+            {!teamInfo && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-4 gap-2"
+                onClick={() => setTeamModalOpen(true)}
+              >
+                <Plus className="h-4 w-4" />
+                Crear equipo
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-4">
-          {teams.map((team) => (
+          {displayedTeams.map((team) => (
             <TeamCard
               key={team.id}
               team={team}
@@ -702,6 +873,8 @@ export function TeamsView() {
               onAddMember={() => openAddMember(team.id)}
               onEditMember={(m) => openEditMember(team.id, m)}
               onDeleteMember={(mid, nombre) => setDeleteMemberConfirm({ teamId: team.id, memberId: mid, nombre })}
+              onStats={() => setStatsTeam({ id: team.id, nombre: team.nombre, members: team.members })}
+              readOnly={!!teamInfo}
             />
           ))}
         </div>
@@ -725,6 +898,13 @@ export function TeamsView() {
         }}
         onSave={handleSaveMember}
         member={editingMember}
+        currentMembers={teams.find((t) => t.id === targetTeamId)?.members ?? []}
+      />
+
+      <TeamStatsModal
+        open={!!statsTeam}
+        onClose={() => setStatsTeam(null)}
+        team={statsTeam}
       />
 
       {/* Delete member confirm */}

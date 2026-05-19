@@ -5,6 +5,8 @@ export type TicketStatus = 'activo' | 'completado' | 'cancelado';
 
 export interface Ticket {
   id: string;
+  teamId?: string;
+  teamNombre?: string;
   codigo: string;        // e.g. RQ-001, JIRA-123
   nombre: string;
   descripcion: string;
@@ -17,6 +19,7 @@ export interface Ticket {
 }
 
 export interface TicketFormData {
+  teamId?: string;
   codigo: string;
   nombre: string;
   descripcion: string;
