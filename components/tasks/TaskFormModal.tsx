@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -39,13 +39,14 @@ type FormData = z.infer<typeof schema>;
 interface TaskFormModalProps {
   open: boolean;
   onClose: () => void;
-  onSave: (data: TaskFormData) => void;
+  onSave: (data: TaskFormData) => Promise<void>;
   task?: Task | null;
   date: string;
 }
 
 export function TaskFormModal({ open, onClose, onSave, task, date }: TaskFormModalProps) {
   const isEditing = Boolean(task);
+  const [isLoading, setIsLoading] = useState(false);
   const { tickets } = useTickets();
   const { apps } = useApps();
 
@@ -72,18 +73,19 @@ export function TaskFormModal({ open, onClose, onSave, task, date }: TaskFormMod
   });
 
   useEffect(() => {
+    setIsLoading(false);
     if (task) {
       form.reset({
-        nombre: task.nombre,
-        rqTicket: task.rqTicket,
-        aplicacion: task.aplicacion,
-        observacion: task.observacion,
-        urlEscenario: task.urlEscenario,
+        nombre: task.nombre ?? '',
+        rqTicket: task.rqTicket ?? '',
+        aplicacion: task.aplicacion ?? '',
+        observacion: task.observacion ?? '',
+        urlEscenario: task.urlEscenario ?? '',
         status: task.status,
         priority: task.priority,
-        horaInicio: task.horaInicio,
-        horaFin: task.horaFin,
-        tiempoInvertido: task.tiempoInvertido,
+        horaInicio: task.horaInicio ?? '',
+        horaFin: task.horaFin ?? '',
+        tiempoInvertido: task.tiempoInvertido ?? '',
       });
     } else {
       const now = new Date();
@@ -103,9 +105,16 @@ export function TaskFormModal({ open, onClose, onSave, task, date }: TaskFormMod
     }
   }, [task, open, form]);
 
-  const onSubmit = (data: FormData) => {
-    onSave(data as TaskFormData);
-    onClose();
+  const onSubmit = async (data: FormData) => {
+    setIsLoading(true);
+    try {
+      await onSave(data as TaskFormData);
+      onClose();
+    } catch {
+      // error toast shown by parent
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const formattedDate = new Date(date + 'T00:00:00').toLocaleDateString('es-ES', {
@@ -275,10 +284,10 @@ export function TaskFormModal({ open, onClose, onSave, task, date }: TaskFormMod
             </div>
 
             <div className="flex gap-3 pt-2 justify-end">
-              <Button type="button" variant="outline" onClick={onClose}>
+              <Button type="button" variant="outline" onClick={onClose} disabled={isLoading}>
                 Cancelar
               </Button>
-              <Button type="submit">
+              <Button type="submit" isLoading={isLoading} disabled={isLoading}>
                 {isEditing ? 'Guardar cambios' : 'Agregar tarea'}
               </Button>
             </div>

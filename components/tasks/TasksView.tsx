@@ -66,8 +66,9 @@ export function TasksView() {
         await addTask(selectedDate, data);
         toast.success('Tarea agregada', 'La tarea fue registrada correctamente');
       }
-    } catch {
+    } catch (err) {
       toast.error('Error', 'No se pudo guardar la tarea');
+      throw err;
     }
   };
 

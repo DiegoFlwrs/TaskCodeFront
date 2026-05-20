@@ -46,10 +46,11 @@ function TicketModal({
   open, onClose, onSave, ticket, teams,
 }: {
   open: boolean; onClose: () => void;
-  onSave: (data: TicketFormData) => void; ticket?: Ticket | null;
+  onSave: (data: TicketFormData) => Promise<void>; ticket?: Ticket | null;
   teams: TeamOption[];
 }) {
   const isEditing = Boolean(ticket);
+  const [isLoading, setIsLoading] = useState(false);
   const form = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: ticket ?? {
@@ -59,7 +60,18 @@ function TicketModal({
   });
 
   useEffect(() => {
-    form.reset(ticket ?? {
+    setIsLoading(false);
+    form.reset(ticket ? {
+      teamId: ticket.teamId ?? '',
+      codigo: ticket.codigo ?? '',
+      nombre: ticket.nombre ?? '',
+      descripcion: ticket.descripcion ?? '',
+      asignadoPor: ticket.asignadoPor ?? '',
+      fechaInicio: ticket.fechaInicio ?? '',
+      fechaFin: ticket.fechaFin ?? '',
+      priority: ticket.priority,
+      status: ticket.status,
+    } : {
       teamId: teams.length > 0 ? teams[0].id : '',
       codigo: '', nombre: '', descripcion: '', asignadoPor: '',
       fechaInicio: '', fechaFin: '', priority: 'media', status: 'activo',
@@ -87,7 +99,17 @@ function TicketModal({
             </Dialog.Close>
           </div>
 
-          <form onSubmit={form.handleSubmit((d) => { onSave(d as TicketFormData); onClose(); })} className="space-y-4">
+          <form onSubmit={form.handleSubmit(async (d) => {
+            setIsLoading(true);
+            try {
+              await onSave(d as TicketFormData);
+              onClose();
+            } catch {
+              // error toast shown by parent
+            } finally {
+              setIsLoading(false);
+            }
+          })} className="space-y-4">
             {teams.length > 0 && (
               <div className="space-y-1.5">
                 <Label>Equipo</Label>
@@ -153,8 +175,8 @@ function TicketModal({
             </div>
 
             <div className="flex gap-3 justify-end pt-1">
-              <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-              <Button type="submit">{isEditing ? 'Guardar cambios' : 'Crear ticket'}</Button>
+              <Button type="button" variant="outline" onClick={onClose} disabled={isLoading}>Cancelar</Button>
+              <Button type="submit" isLoading={isLoading} disabled={isLoading}>{isEditing ? 'Guardar cambios' : 'Crear ticket'}</Button>
             </div>
           </form>
         </Dialog.Content>
@@ -220,8 +242,9 @@ export function TicketsView() {
         await addTicket(data);
         toast.success('Ticket creado', data.codigo);
       }
-    } catch {
+    } catch (err) {
       toast.error('Error', 'No se pudo guardar el ticket');
+      throw err;
     }
   };
 
