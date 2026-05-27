@@ -40,17 +40,17 @@ const navItems = [
     href: '/dashboard/apps',
     icon: AppWindow,
   },
-  {
-    label: 'Equipos',
-    href: '/dashboard/teams',
-    icon: Users,
-    teamLeaderOnly: true,
-  },
-  {
-    label: 'Reportes',
-    href: '/dashboard/reports',
-    icon: BarChart2,
-  },
+  // {
+  //   label: 'Equipos',
+  //   href: '/dashboard/teams',
+  //   icon: Users,
+  //   teamLeaderOnly: true,
+  // },
+  // {
+  //   label: 'Reportes',
+  //   href: '/dashboard/reports',
+  //   icon: BarChart2,
+  // },
 //   {
 //     label: 'Configuración',
 //     href: '/dashboard/settings',
@@ -67,8 +67,10 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
   const { isTeamLeader } = useUser();
 
-  const visibleItems = navItems.filter((item) => !item.teamLeaderOnly || isTeamLeader);
+  // const visibleItems = navItems.filter((item) => !item.teamLeaderOnly || isTeamLeader);
 
+
+const visibleItems = navItems;
   const isActive = (item: (typeof navItems)[0]) => {
     if (item.exact) return pathname === item.href;
     return pathname.startsWith(item.href);
