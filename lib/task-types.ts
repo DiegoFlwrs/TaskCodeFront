@@ -1,6 +1,6 @@
 // Task module types
 
-export type TaskStatus = 'pendiente' | 'en-progreso' | 'completada' | 'cancelada' | 'consultar';
+export type TaskStatus = 'pendiente' | 'completada' | 'consultar';
 export type TaskPriority = 'baja' | 'media' | 'alta' | 'critica';
 
 export interface Task {
@@ -35,9 +35,9 @@ export interface TaskFormData {
 
 export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
   pendiente: 'Pendiente',
-  'en-progreso': 'En Progreso',
+  // 'en-progreso': 'En Progreso',
   completada: 'Completada',
-  cancelada: 'Cancelada',
+  // cancelada: 'Cancelada',
   consultar: 'Consultar',
 };
 
@@ -50,9 +50,9 @@ export const TASK_PRIORITY_LABELS: Record<TaskPriority, string> = {
 
 export const TASK_STATUS_COLORS: Record<TaskStatus, string> = {
   pendiente: 'bg-amber-500 text-white',
-  'en-progreso': 'bg-blue-600 text-white',
+  // 'en-progreso': 'bg-blue-600 text-white',
   completada: 'bg-emerald-600 text-white',
-  cancelada: 'bg-zinc-500 text-white',
+  // cancelada: 'bg-zinc-500 text-white',
   consultar: 'bg-purple-600 text-white',
 };
 

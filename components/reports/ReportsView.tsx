@@ -85,7 +85,7 @@ export function ReportsView() {
 
   // Stats
   const completadas = filtered.filter((t) => t.status === 'completada').length;
-  const enProgreso = filtered.filter((t) => t.status === 'en-progreso').length;
+  // const enProgreso = filtered.filter((t) => t.status === 'en-progreso').length;
   const pendientes = filtered.filter((t) => t.status === 'pendiente').length;
 
   // Total tiempo invertido (parse "Xh Ym" → minutes)
@@ -150,7 +150,9 @@ export function ReportsView() {
             Consulta y exporta tus actividades por rango de fechas
           </p>
         </div>
-        <Button onClick={handleExport} disabled={filtered.length === 0} className="gap-2">
+        <Button 
+        onClick={handleExport} disabled={filtered.length === 0} 
+        className="gap-2">
           <Download className="h-4 w-4" />
           Exportar Excel
         </Button>
@@ -217,7 +219,7 @@ export function ReportsView() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <StatCard label="Total tareas" value={filtered.length} />
         <StatCard label="Completadas" value={completadas} sub={filtered.length ? `${Math.round((completadas / filtered.length) * 100)}%` : undefined} />
-        <StatCard label="En progreso / Pendientes" value={`${enProgreso} / ${pendientes}`} />
+        <StatCard label="Pendientes" value={`${pendientes}`} />
         <StatCard label="Tiempo total" value={totalTiempo} />
       </div>
 

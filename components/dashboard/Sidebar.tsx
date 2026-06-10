@@ -46,11 +46,11 @@ const navItems = [
   //   icon: Users,
   //   teamLeaderOnly: true,
   // },
-  // {
-  //   label: 'Reportes',
-  //   href: '/dashboard/reports',
-  //   icon: BarChart2,
-  // },
+  {
+    label: 'Reportes',
+    href: '/dashboard/reports',
+    icon: BarChart2,
+  },
 //   {
 //     label: 'Configuración',
 //     href: '/dashboard/settings',

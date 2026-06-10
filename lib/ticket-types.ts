@@ -28,6 +28,7 @@ export interface TicketFormData {
   fechaFin: string;
   priority: TicketPriority;
   status: TicketStatus;
+  motivo: string;
 }
 
 export type AlarmLevel = 'vencido' | 'critico' | 'urgente' | 'proximo' | 'ok';

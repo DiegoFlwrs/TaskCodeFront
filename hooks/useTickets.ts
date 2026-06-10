@@ -32,6 +32,15 @@ export function useTickets() {
   }, []);
 
   const updateTicket = useCallback(async (id: string, data: Partial<TicketFormData>): Promise<void> => {
+  const { fechaInicio, fechaFin, status, ...payload } = data as any;
+  const updated = await apiClient.request<Ticket>(`/api/tickets/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+    setTickets((prev) => prev.map((t) => (t.id === id ? updated : t)));
+  }, []);
+
+  const updateTicketStatus = useCallback(async (id: string, data: Partial<TicketFormData>): Promise<void> => {
     const updated = await apiClient.request<Ticket>(`/api/tickets/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -44,5 +53,5 @@ export function useTickets() {
     setTickets((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  return { tickets, loading, addTicket, updateTicket, deleteTicket };
+  return { tickets, loading, addTicket, updateTicket, deleteTicket, updateTicketStatus };
 }
