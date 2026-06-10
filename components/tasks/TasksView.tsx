@@ -114,12 +114,15 @@ export function TasksView() {
 
   // Build calendar events from tasks
   const calendarEvents = datesWithTasks.map((date) => {
-    const count = getTasksForDate(date).length;
+    const tasksForDate = getTasksForDate(date);
+    const count = tasksForDate.length;
+    const allCompleted = tasksForDate.every((t) => t.status === 'completada');
+
     return {
       id: date,
       title: `${count} tarea${count !== 1 ? 's' : ''}`,
       date,
-      classNames: ['task-dot-event'],
+      classNames: ['task-dot-event', allCompleted ? 'event-all-done' : 'event-pending'],
     };
   });
 

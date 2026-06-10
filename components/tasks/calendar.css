@@ -74,3 +74,14 @@
 .fc .fc-daygrid-day:hover {
   background-color: hsl(var(--muted) / 0.5);
 }
+
+.event-all-done {
+  background-color: #2563eb !important; /* azul — igual que ahora */
+  border-color: #2563eb !important;
+}
+
+.event-pending {
+  background-color: #dc2626 !important; /* rojo */
+  border-color: #dc2626 !important;
+  color: #fff !important;
+}
