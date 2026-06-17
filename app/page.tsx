@@ -7,6 +7,7 @@ import { useAuth } from '../hooks/useAuth';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { LoadingSpinner } from '../components/ui/loading';
+import { TadLogo } from '../components/brand/TadLogo';
 import { Activity, Users, BarChart3, Shield } from 'lucide-react';
 
 export default function HomePage() {
@@ -58,14 +59,11 @@ export default function HomePage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+    <div className="min-h-screen bg-gradient-to-br from-[hsl(var(--tad-green)/0.1)] via-background to-[hsl(var(--tad-black)/0.05)]">
       {/* Header */}
       <header className="container mx-auto px-4 py-6">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <Activity className="h-8 w-8 text-primary" />
-            <h1 className="text-2xl font-bold text-primary">TaskCodeBack</h1>
-          </div>
+          <TadLogo variant="default" />
           
           <div className="flex items-center space-x-4">
             <Link href="/login">
@@ -109,7 +107,7 @@ export default function HomePage() {
         {/* Features */}
         <div className="mt-32">
           <div className="text-center space-y-4 mb-16">
-            <h3 className="text-3xl font-bold">¿Por qué TaskCodeBack?</h3>
+            <h3 className="text-3xl font-bold">¿Por qué TaskCode TAD?</h3>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
               Descubre las funcionalidades que te ayudarán a ser más productivo
             </p>
@@ -138,7 +136,7 @@ export default function HomePage() {
       {/* Footer */}
       <footer className="container mx-auto px-4 pb-8 mt-10 border-t">
         <div className="text-center text-muted-foreground">
-          <p>&copy; 2024 TaskCodeBack. Gestión de actividades para desarrolladores.</p>
+          <p>&copy; {new Date().getFullYear()} TaskCode TAD · TAD Consultoría</p>
         </div>
       </footer>
     </div>

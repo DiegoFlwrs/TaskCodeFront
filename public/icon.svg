@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" fill="none">
+  <rect width="180" height="180" rx="36" fill="#73AD2E"/>
+  <text x="90" y="78" text-anchor="middle" fill="#FFFFFF" font-family="system-ui, -apple-system, sans-serif" font-weight="800" font-size="48">TAD</text>
+  <text x="90" y="128" text-anchor="middle" fill="#1A1A1A" font-family="system-ui, -apple-system, sans-serif" font-weight="800" font-size="38">CODE</text>
+</svg>

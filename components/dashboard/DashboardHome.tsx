@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { useUser } from '../../hooks/useAuth';
 import { useTickets } from '../../hooks/useTickets';
 import { useTasks } from '../../hooks/useTasks';
@@ -21,7 +22,8 @@ import {
   AlertTriangle,
   Ticket,
   AppWindow,
-  Users,
+  BarChart2,
+  X,
 } from 'lucide-react';
 
 const quickActions = [
@@ -50,12 +52,12 @@ const quickActions = [
     bg: 'bg-emerald-500/10',
   },
   {
-    label: 'Equipos',
-    description: 'Administra miembros y roles',
-    href: '/dashboard/teams',
-    icon: Users,
-    color: 'text-amber-500',
-    bg: 'bg-amber-500/10',
+    label: 'Reportes',
+    description: 'Consulta y exporta actividades',
+    href: '/dashboard/reports',
+    icon: BarChart2,
+    color: 'text-primary',
+    bg: 'bg-primary/10',
   },
 ];
 
@@ -87,6 +89,12 @@ export function DashboardHome() {
     const l = getAlarmLevel(t.fechaFin, t.status);
     return l === 'vencido' || l === 'critico' || l === 'urgente';
   });
+
+  const [alertDismissed, setAlertDismissed] = useState(false);
+
+  useEffect(() => {
+    setAlertDismissed(false);
+  }, [urgentTickets.length]);
 
   const activeTickets = tickets.filter((t) => t.status === 'activo').length;
 
@@ -135,26 +143,13 @@ export function DashboardHome() {
           </h2>
           <p className="text-muted-foreground mt-1 capitalize">{formattedDate}</p>
         </div>
-        <Link href="/dashboard/tasks">
+        {/* <Link href="/dashboard/tasks">
           <Button className="gap-2">
             <Plus className="h-4 w-4" />
             Nueva tarea
           </Button>
-        </Link>
+        </Link> */}
       </div>
-
-      {/* Ticket alert banner */}
-      {urgentTickets.length > 0 && (
-        <Link href="/dashboard/tickets">
-          <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 transition-colors cursor-pointer dark:bg-red-900/20 dark:border-red-800 dark:text-red-400">
-            <AlertTriangle className="h-5 w-5 shrink-0" />
-            <p className="text-sm font-medium flex-1">
-              {urgentTickets.length} ticket{urgentTickets.length !== 1 ? 's' : ''} requiere{urgentTickets.length === 1 ? '' : 'n'} atención inmediata
-            </p>
-            <ArrowRight className="h-4 w-4 shrink-0" />
-          </div>
-        </Link>
-      )}
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -273,6 +268,43 @@ export function DashboardHome() {
           )}
         </Card>
       </div>
+
+      {urgentTickets.length > 0 && !alertDismissed && (
+        <div className="fixed bottom-4 right-4 z-50 w-[min(360px,calc(100vw-2rem))] animate-in slide-in-from-bottom-4 fade-in duration-300">
+          <div className="rounded-xl border border-border bg-card shadow-2xl overflow-hidden">
+            <div className="h-1 bg-amber-500" />
+            <div className="p-4 flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-amber-500/10 shrink-0">
+                <AlertTriangle className="h-5 w-5 text-amber-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-foreground">
+                  Atención requerida
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {urgentTickets.length} ticket{urgentTickets.length !== 1 ? 's' : ''}{' '}
+                  requiere{urgentTickets.length === 1 ? '' : 'n'} atención inmediata
+                </p>
+                <Link
+                  href="/dashboard/tickets"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-primary mt-2.5 hover:underline"
+                >
+                  Ver tickets
+                  <ArrowRight className="h-3 w-3" />
+                </Link>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAlertDismissed(true)}
+                className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
+                aria-label="Cerrar notificación"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

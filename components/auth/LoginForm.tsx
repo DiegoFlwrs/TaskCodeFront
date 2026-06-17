@@ -75,7 +75,7 @@ export function LoginForm() {
             Iniciar Sesión
           </CardTitle>
           <CardDescription>
-            Ingresa tus credenciales para acceder a TaskCodeBack
+            Ingresa tus credenciales para acceder a TaskCode TAD
           </CardDescription>
         </CardHeader>
 

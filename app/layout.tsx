@@ -16,8 +16,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "TaskCodeBack - Gestión de Actividades",
-  description: "Plataforma de gestión de actividades para desarrolladores",
+  title: "TaskCode TAD - Gestión de Actividades",
+  description: "Plataforma de gestión de actividades para desarrolladores — TAD Consultoría",
+  icons: {
+    icon: "/favicon.svg",
+    apple: "/icon.svg",
+  },
 };
 
 export default function RootLayout({
