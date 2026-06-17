@@ -7,6 +7,7 @@ export interface Task {
   id: string;
   nombre: string;
   rqTicket: string;
+  solicitante: string;
   aplicacion: string;
   observacion: string;
   urlEscenario: string;
@@ -23,6 +24,7 @@ export interface Task {
 export interface TaskFormData {
   nombre: string;
   rqTicket: string;
+  solicitante: string;
   aplicacion: string;
   observacion: string;
   urlEscenario: string;

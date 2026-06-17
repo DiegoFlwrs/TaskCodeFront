@@ -24,6 +24,7 @@ import {
 const schema = z.object({
   nombre: z.string().min(1, "Requerido"),
   rqTicket: z.string(),
+  solicitante: z.string(),
   aplicacion: z.string(),
   observacion: z.string(),
   urlEscenario: z.string(),
@@ -77,6 +78,7 @@ export function TaskFormModal({
     defaultValues: {
       nombre: "",
       rqTicket: "",
+      solicitante: "",
       aplicacion: "",
       observacion: "",
       urlEscenario: "",
@@ -88,12 +90,26 @@ export function TaskFormModal({
     },
   });
 
+  const rqTicket = form.watch("rqTicket");
+
+  useEffect(() => {
+    if (!rqTicket) {
+      form.setValue("solicitante", "");
+      return;
+    }
+    const ticket = tickets.find((t) => t.codigo === rqTicket);
+    if (ticket?.asignadoPor) {
+      form.setValue("solicitante", ticket.asignadoPor);
+    }
+  }, [rqTicket, tickets, form]);
+
   useEffect(() => {
     setIsLoading(false);
     if (task) {
       form.reset({
         nombre: task.nombre ?? "",
         rqTicket: task.rqTicket ?? "",
+        solicitante: task.solicitante ?? "",
         aplicacion: task.aplicacion ?? "",
         observacion: task.observacion ?? "",
         urlEscenario: task.urlEscenario ?? "",
@@ -109,6 +125,7 @@ export function TaskFormModal({
       form.reset({
         nombre: "",
         rqTicket: "",
+        solicitante: "",
         aplicacion: "",
         observacion: "",
         urlEscenario: "",

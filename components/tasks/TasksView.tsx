@@ -169,13 +169,13 @@ export function TasksView() {
         {!selectedDate && (
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-sm bg-red-500" />
+              <span className="w-3 h-3 rounded-sm bg-amber-500" />
               <span className="text-xs text-muted-foreground">
                 Tiene tareas pendientes
               </span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-sm bg-blue-600" />
+              <span className="w-3 h-3 rounded-sm bg-emerald-600" />
               <span className="text-xs text-muted-foreground">
                 Todas las tareas completadas
               </span>

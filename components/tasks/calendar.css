@@ -76,12 +76,12 @@
 }
 
 .event-all-done {
-  background-color: #2563eb !important; /* azul — igual que ahora */
-  border-color: #2563eb !important;
+  background-color: #059669 !important; /* emerald-600 — igual que badge Completada */
+  border-color: #059669 !important;
 }
 
 .event-pending {
-  background-color: #dc2626 !important; /* rojo */
-  border-color: #dc2626 !important;
+  background-color: #f59e0b !important; /* amber-500 — igual que badge Pendiente */
+  border-color: #f59e0b !important;
   color: #fff !important;
 }

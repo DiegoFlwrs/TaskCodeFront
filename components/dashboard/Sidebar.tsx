@@ -20,7 +20,7 @@ import { useUser } from '../../hooks/useAuth';
 
 const navItems = [
   {
-    label: 'Dashboard',
+    label: 'Inicio',
     href: '/dashboard',
     icon: LayoutDashboard,
     exact: true,
