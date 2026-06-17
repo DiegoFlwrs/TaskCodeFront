@@ -1,30 +1,41 @@
-'use client';
+"use client";
 
-import { useState, useRef, useCallback, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
-import FullCalendar from '@fullcalendar/react';
-import dayGridPlugin from '@fullcalendar/daygrid';
-import interactionPlugin from '@fullcalendar/interaction';
-import type { DateClickArg } from '@fullcalendar/interaction';
-import { Plus, ArrowLeft, X, CalendarDays } from 'lucide-react';
-import { Button } from '../ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { TaskTable } from './TaskTable';
-import { TaskFormModal } from './TaskFormModal';
-import { useTasks } from '../../hooks/useTasks';
-import { Task, TaskFormData, TASK_STATUS_COLORS, TASK_STATUS_LABELS } from '../../lib/task-types';
-import { useToastManager } from '../ui/toast-manager';
-import './calendar.css';
+import { useState, useRef, useCallback, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
+import FullCalendar from "@fullcalendar/react";
+import dayGridPlugin from "@fullcalendar/daygrid";
+import interactionPlugin from "@fullcalendar/interaction";
+import type { DateClickArg } from "@fullcalendar/interaction";
+import { Plus, ArrowLeft, X, CalendarDays } from "lucide-react";
+import { Button } from "../ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { TaskTable } from "./TaskTable";
+import { TaskFormModal } from "./TaskFormModal";
+import { useTasks } from "../../hooks/useTasks";
+import {
+  Task,
+  TaskFormData,
+  TASK_STATUS_COLORS,
+  TASK_STATUS_LABELS,
+} from "../../lib/task-types";
+import { useToastManager } from "../ui/toast-manager";
+import "./calendar.css";
 
 export function TasksView() {
-  const { getTasksForDate, getDatesWithTasks, addTask, updateTask, deleteTask } = useTasks();
+  const {
+    getTasksForDate,
+    getDatesWithTasks,
+    addTask,
+    updateTask,
+    deleteTask,
+  } = useTasks();
   const { toast } = useToastManager();
 
   const searchParams = useSearchParams();
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   useEffect(() => {
-    const date = searchParams.get('date');
+    const date = searchParams.get("date");
     if (date) setSelectedDate(date);
   }, [searchParams]);
   const [formOpen, setFormOpen] = useState(false);
@@ -51,9 +62,9 @@ export function TasksView() {
   const handleDeleteTask = async (id: string) => {
     try {
       await deleteTask(id);
-      toast.success('Tarea eliminada', 'La tarea fue eliminada correctamente');
+      toast.success("Tarea eliminada", "La tarea fue eliminada correctamente");
     } catch {
-      toast.error('Error', 'No se pudo eliminar la tarea');
+      toast.error("Error", "No se pudo eliminar la tarea");
     }
   };
 
@@ -61,13 +72,16 @@ export function TasksView() {
     try {
       if (editingTask) {
         await updateTask(editingTask.id, data);
-        toast.success('Tarea actualizada', 'Los cambios fueron guardados');
+        toast.success("Tarea actualizada", "Los cambios fueron guardados");
       } else if (selectedDate) {
         await addTask(selectedDate, data);
-        toast.success('Tarea agregada', 'La tarea fue registrada correctamente');
+        toast.success(
+          "Tarea agregada",
+          "La tarea fue registrada correctamente",
+        );
       }
     } catch (err) {
-      toast.error('Error', 'No se pudo guardar la tarea');
+      toast.error("Error", "No se pudo guardar la tarea");
       throw err;
     }
   };
@@ -75,10 +89,10 @@ export function TasksView() {
   const handleFinishTask = async (task: Task) => {
     const now = new Date();
     const horaFin = now.toTimeString().slice(0, 5);
-    let tiempoInvertido = '';
+    let tiempoInvertido = "";
     if (task.horaInicio) {
-      const [startH, startM] = task.horaInicio.split(':').map(Number);
-      const [endH, endM] = horaFin.split(':').map(Number);
+      const [startH, startM] = task.horaInicio.split(":").map(Number);
+      const [endH, endM] = horaFin.split(":").map(Number);
       const diffMins = endH * 60 + endM - (startH * 60 + startM);
       if (diffMins > 0) {
         const h = Math.floor(diffMins / 60);
@@ -87,42 +101,57 @@ export function TasksView() {
       }
     }
     try {
-      await updateTask(task.id, { ...task, status: 'completada', horaFin, tiempoInvertido });
-      toast.success('Tarea finalizada', `Marcada como completada a las ${horaFin}`);
+      await updateTask(task.id, {
+        ...task,
+        status: "completada",
+        horaFin,
+        tiempoInvertido,
+      });
+      toast.success(
+        "Tarea finalizada",
+        `Marcada como completada a las ${horaFin}`,
+      );
     } catch {
-      toast.error('Error', 'No se pudo finalizar la tarea');
+      toast.error("Error", "No se pudo finalizar la tarea");
     }
   };
 
   const handleConsultTask = async (task: Task, observacion: string) => {
     try {
-      await updateTask(task.id, { ...task, status: 'consultar', consultaObservacion: observacion });
-      toast.success('Marcada para consultar', task.nombre);
+      await updateTask(task.id, {
+        ...task,
+        status: "consultar",
+        consultaObservacion: observacion,
+      });
+      toast.success("Marcada para consultar", task.nombre);
     } catch {
-      toast.error('Error', 'No se pudo actualizar la tarea');
+      toast.error("Error", "No se pudo actualizar la tarea");
     }
   };
 
   const formattedSelectedDate = selectedDate
-    ? new Date(selectedDate + 'T00:00:00').toLocaleDateString('es-ES', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
+    ? new Date(selectedDate + "T00:00:00").toLocaleDateString("es-ES", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        year: "numeric",
       })
-    : '';
+    : "";
 
   // Build calendar events from tasks
   const calendarEvents = datesWithTasks.map((date) => {
     const tasksForDate = getTasksForDate(date);
     const count = tasksForDate.length;
-    const allCompleted = tasksForDate.every((t) => t.status === 'completada');
+    const allCompleted = tasksForDate.every((t) => t.status === "completada");
 
     return {
       id: date,
-      title: `${count} tarea${count !== 1 ? 's' : ''}`,
+      title: `${count} tarea${count !== 1 ? "s" : ""}`,
       date,
-      classNames: ['task-dot-event', allCompleted ? 'event-all-done' : 'event-pending'],
+      classNames: [
+        "task-dot-event",
+        allCompleted ? "event-all-done" : "event-pending",
+      ],
     };
   });
 
@@ -136,7 +165,22 @@ export function TasksView() {
             Selecciona un día para ver o registrar tus actividades
           </p>
         </div>
-
+        {!selectedDate && (
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-sm bg-red-500" />
+              <span className="text-xs text-muted-foreground">
+                Tiene tareas pendientes
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-sm bg-blue-600" />
+              <span className="text-xs text-muted-foreground">
+                Todas las tareas completadas
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Calendar */}
@@ -149,15 +193,15 @@ export function TasksView() {
               initialView="dayGridMonth"
               locale="es"
               headerToolbar={{
-                left: 'prev,next today',
-                center: 'title',
-                right: 'dayGridMonth,dayGridYear',
+                left: "prev,next today",
+                center: "title",
+                right: "dayGridMonth,dayGridYear",
               }}
               views={{
                 dayGridYear: {
-                  type: 'dayGrid',
+                  type: "dayGrid",
                   duration: { years: 1 },
-                  buttonText: 'Año',
+                  buttonText: "Año",
                 },
               }}
               dateClick={handleDateClick}
@@ -167,8 +211,8 @@ export function TasksView() {
               eventClassNames="cursor-pointer"
               dayCellClassNames="cursor-pointer hover:bg-muted/50 transition-colors"
               buttonText={{
-                today: 'Hoy',
-                month: 'Mes',
+                today: "Hoy",
+                month: "Mes",
               }}
             />
           </CardContent>
@@ -188,9 +232,13 @@ export function TasksView() {
                 <ArrowLeft className="h-4 w-4" />
               </button>
               <div>
-                <CardTitle className="text-base capitalize">{formattedSelectedDate}</CardTitle>
+                <CardTitle className="text-base capitalize">
+                  {formattedSelectedDate}
+                </CardTitle>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {tasksForDay.length} tarea{tasksForDay.length !== 1 ? 's' : ''} registrada{tasksForDay.length !== 1 ? 's' : ''}
+                  {tasksForDay.length} tarea
+                  {tasksForDay.length !== 1 ? "s" : ""} registrada
+                  {tasksForDay.length !== 1 ? "s" : ""}
                 </p>
               </div>
             </div>
@@ -215,7 +263,9 @@ export function TasksView() {
       {!selectedDate && datesWithTasks.length === 0 && (
         <div className="text-center py-6 text-muted-foreground">
           <CalendarDays className="h-10 w-10 mx-auto mb-3 opacity-30" />
-          <p className="text-sm font-medium">Haz clic en cualquier día para comenzar</p>
+          <p className="text-sm font-medium">
+            Haz clic en cualquier día para comenzar
+          </p>
         </div>
       )}
 
