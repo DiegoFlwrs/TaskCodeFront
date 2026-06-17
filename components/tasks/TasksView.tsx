@@ -34,6 +34,7 @@ export function TasksView() {
   const searchParams = useSearchParams();
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
+  
   useEffect(() => {
     const date = searchParams.get("date");
     if (date) setSelectedDate(date);
