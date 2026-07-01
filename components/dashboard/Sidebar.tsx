@@ -20,7 +20,13 @@ import { TadLogo } from '../brand/TadLogo';
 import { Avatar, AvatarFallback } from '../ui/avatar';
 import { useAuth, useUser } from '../../hooks/useAuth';
 
-const navItems = [
+const navItems: {
+  label: string;
+  href: string;
+  icon: typeof LayoutDashboard;
+  exact?: boolean;
+  teamLeaderOnly?: boolean;
+}[] = [
   {
     label: 'Inicio',
     href: '/dashboard',
@@ -72,7 +78,11 @@ function getInitials(name: string): string {
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
   const { logout } = useAuth();
-  const { user } = useUser();
+  const { user, isTeamLeader } = useUser();
+
+  const visibleItems = navItems.filter(
+    (item) => !item.teamLeaderOnly || isTeamLeader,
+  );
 
   const isActive = (item: (typeof navItems)[0]) => {
     if (item.exact) return pathname === item.href;
@@ -115,7 +125,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
       {/* Nav items */}
       <nav className="flex-1 py-4 space-y-1 px-2 overflow-y-auto">
-        {navItems.map((item) => {
+        {visibleItems.map((item) => {
           const active = isActive(item);
           return (
             <Link

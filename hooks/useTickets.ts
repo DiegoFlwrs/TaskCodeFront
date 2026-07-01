@@ -32,10 +32,9 @@ export function useTickets() {
   }, []);
 
   const updateTicket = useCallback(async (id: string, data: Partial<TicketFormData>): Promise<void> => {
-  const { fechaInicio, fechaFin, status, ...payload } = data as any;
-  const updated = await apiClient.request<Ticket>(`/api/tickets/${id}`, {
+    const updated = await apiClient.request<Ticket>(`/api/tickets/${id}`, {
       method: 'PUT',
-      body: JSON.stringify(payload),
+      body: JSON.stringify(data),
     });
     setTickets((prev) => prev.map((t) => (t.id === id ? updated : t)));
   }, []);
@@ -53,5 +52,39 @@ export function useTickets() {
     setTickets((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  return { tickets, loading, addTicket, updateTicket, deleteTicket, updateTicketStatus };
+  const requestExtension = useCallback(async (
+    id: string,
+    fechaFin: string,
+    motivo: string,
+  ): Promise<Ticket> => {
+    const updated = await apiClient.request<Ticket>(`/api/tickets/${id}/extension-request`, {
+      method: 'POST',
+      body: JSON.stringify({ fechaFin, motivo }),
+    });
+    setTickets((prev) => prev.map((t) => (t.id === id ? updated : t)));
+    return updated;
+  }, []);
+
+  const reviewExtension = useCallback(async (
+    id: string,
+    approved: boolean,
+  ): Promise<Ticket> => {
+    const updated = await apiClient.request<Ticket>(`/api/tickets/${id}/extension-review`, {
+      method: 'POST',
+      body: JSON.stringify({ approved }),
+    });
+    setTickets((prev) => prev.map((t) => (t.id === id ? updated : t)));
+    return updated;
+  }, []);
+
+  return {
+    tickets,
+    loading,
+    addTicket,
+    updateTicket,
+    deleteTicket,
+    updateTicketStatus,
+    requestExtension,
+    reviewExtension,
+  };
 }

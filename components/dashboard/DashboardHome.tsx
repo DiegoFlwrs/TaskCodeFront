@@ -10,6 +10,7 @@ import { TASK_STATUS_COLORS, TASK_STATUS_LABELS } from '../../lib/task-types';
 import { cn } from '../../lib/utils';
 import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
+import { TicketUrgentAlert } from '../tickets/TicketUrgentAlert';
 import {
   CheckSquare,
   Clock,
@@ -19,11 +20,9 @@ import {
   Activity,
   Target,
   Zap,
-  AlertTriangle,
   Ticket,
   AppWindow,
   BarChart2,
-  X,
 } from 'lucide-react';
 
 const quickActions = [
@@ -269,41 +268,13 @@ export function DashboardHome() {
         </Card>
       </div>
 
-      {urgentTickets.length > 0 && !alertDismissed && (
-        <div className="fixed bottom-4 right-4 z-50 w-[min(360px,calc(100vw-2rem))] animate-in slide-in-from-bottom-4 fade-in duration-300">
-          <div className="rounded-xl border border-border bg-card shadow-2xl overflow-hidden">
-            <div className="h-1 bg-amber-500" />
-            <div className="p-4 flex items-start gap-3">
-              <div className="p-2 rounded-lg bg-amber-500/10 shrink-0">
-                <AlertTriangle className="h-5 w-5 text-amber-600" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-foreground">
-                  Atención requerida
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {urgentTickets.length} ticket{urgentTickets.length !== 1 ? 's' : ''}{' '}
-                  requiere{urgentTickets.length === 1 ? '' : 'n'} atención inmediata
-                </p>
-                <Link
-                  href="/dashboard/tickets"
-                  className="inline-flex items-center gap-1 text-xs font-medium text-primary mt-2.5 hover:underline"
-                >
-                  Ver tickets
-                  <ArrowRight className="h-3 w-3" />
-                </Link>
-              </div>
-              <button
-                type="button"
-                onClick={() => setAlertDismissed(true)}
-                className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
-                aria-label="Cerrar notificación"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-        </div>
+      {urgentTickets.length > 0 && (
+        <TicketUrgentAlert
+          count={urgentTickets.length}
+          dismissed={alertDismissed}
+          onDismiss={() => setAlertDismissed(true)}
+          action={{ label: 'Ver tickets', href: '/dashboard/tickets' }}
+        />
       )}
     </div>
   );
