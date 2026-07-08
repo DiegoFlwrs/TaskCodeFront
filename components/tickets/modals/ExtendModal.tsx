@@ -8,6 +8,12 @@ import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';
 
+function addDays(dateStr: string, days: number): string {
+  const date = new Date(`${dateStr}T00:00:00`);
+  date.setDate(date.getDate() + days);
+  return date.toISOString().split('T')[0];
+}
+
 export function ExtendModal({
   ticket,
   mode,
@@ -22,25 +28,57 @@ export function ExtendModal({
   const [fechaFin, setFechaFin] = useState('');
   const [motivo, setMotivo] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [errors, setErrors] = useState<{ fechaFin?: string; motivo?: string }>({});
   const isRequest = mode === 'request';
 
   useEffect(() => {
     if (ticket) {
       setFechaFin(ticket.fechaFin ?? '');
       setMotivo('');
+      setErrors({});
     }
   }, [ticket]);
 
+  const validate = (): boolean => {
+    const nextErrors: { fechaFin?: string; motivo?: string } = {};
+
+    if (!fechaFin) {
+      nextErrors.fechaFin = 'La fecha es requerida';
+    } else if (ticket?.fechaFin) {
+      const minDate = isRequest ? addDays(ticket.fechaFin, 1) : ticket.fechaFin;
+      if (fechaFin < minDate) {
+        nextErrors.fechaFin = isRequest
+          ? 'La nueva fecha debe ser posterior a la fecha de fin actual'
+          : 'La fecha no puede ser anterior a la fecha de fin actual';
+      }
+    }
+
+    if (!motivo.trim()) {
+      nextErrors.motivo = 'El motivo es requerido';
+    } else if (motivo.length > 2000) {
+      nextErrors.motivo = 'El motivo no puede superar 2000 caracteres';
+    }
+
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  };
+
   const handleSubmit = async () => {
-    if (!ticket || !fechaFin || !motivo.trim()) return;
+    if (!ticket || !validate()) return;
     setIsLoading(true);
     try {
-      await onSubmit(ticket, fechaFin, motivo);
+      await onSubmit(ticket, fechaFin, motivo.trim());
       onClose();
     } finally {
       setIsLoading(false);
     }
   };
+
+  const minDate = ticket?.fechaFin
+    ? isRequest
+      ? addDays(ticket.fechaFin, 1)
+      : ticket.fechaFin
+    : new Date().toISOString().split('T')[0];
 
   return (
     <Dialog.Root open={Boolean(ticket)} onOpenChange={(v) => !v && onClose()}>
@@ -75,8 +113,11 @@ export function ExtendModal({
                 type="date"
                 value={fechaFin}
                 onChange={(e) => setFechaFin(e.target.value)}
-                min={ticket?.fechaFin ?? new Date().toISOString().split('T')[0]}
+                min={minDate}
               />
+              {errors.fechaFin && (
+                <p className="text-xs text-destructive">{errors.fechaFin}</p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label>Motivo *</Label>
@@ -91,6 +132,9 @@ export function ExtendModal({
                 onChange={(e) => setMotivo(e.target.value)}
                 className="w-full px-3 py-2 rounded-md border bg-background text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
               />
+              {errors.motivo && (
+                <p className="text-xs text-destructive">{errors.motivo}</p>
+              )}
             </div>
           </div>
 
@@ -100,7 +144,7 @@ export function ExtendModal({
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={isLoading || !fechaFin || !motivo.trim()}
+              disabled={isLoading}
               isLoading={isLoading}
               className="bg-amber-500 hover:bg-amber-600 text-white"
             >

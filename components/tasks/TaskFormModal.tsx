@@ -22,12 +22,12 @@ import {
 } from "../../lib/task-types";
 
 const schema = z.object({
-  nombre: z.string().min(1, "Requerido"),
-  rqTicket: z.string(),
-  solicitante: z.string(),
-  aplicacion: z.string(),
-  observacion: z.string(),
-  urlEscenario: z.string(),
+  nombre: z.string().min(1, "Requerido").max(255, "Máximo 255 caracteres"),
+  rqTicket: z.string().max(50, "Máximo 50 caracteres"),
+  solicitante: z.string().max(100, "Máximo 100 caracteres"),
+  aplicacion: z.string().max(150, "Máximo 150 caracteres"),
+  observacion: z.string().max(5000, "Máximo 5000 caracteres"),
+  urlEscenario: z.string().max(500, "Máximo 500 caracteres"),
   status: z.enum([
     "pendiente",
     "en-progreso",
@@ -36,7 +36,7 @@ const schema = z.object({
     "consultar",
   ]),
   priority: z.enum(["baja", "media", "alta", "critica"]),
-  horaInicio: z.string(),
+  horaInicio: z.string().min(1, "Requerido"),
   horaFin: z.string(),
   tiempoInvertido: z.string(),
 });

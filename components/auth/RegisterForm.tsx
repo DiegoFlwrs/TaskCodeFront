@@ -20,23 +20,30 @@ const registerSchema = z.object({
   nombre: z
     .string()
     .min(2, 'El nombre debe tener al menos 2 caracteres')
-    .max(50, 'El nombre no puede exceder 50 caracteres'),
+    .max(100, 'El nombre no puede exceder 100 caracteres'),
   email: z
     .string()
     .min(1, 'El email es requerido')
+    .max(150, 'El email no puede exceder 150 caracteres')
     .refine(validateEmail, 'Email inválido'),
   password: z
     .string()
     .min(6, 'La contraseña debe tener al menos 6 caracteres')
+    .max(50, 'La contraseña no puede exceder 50 caracteres')
     .refine((password) => validatePassword(password).isValid, {
       message: 'La contraseña debe contener mayúsculas, minúsculas y números',
     }),
   confirmPassword: z.string(),
   equipoNombre: z.string().optional(),
   equipoDescripcion: z.string().optional(),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: 'Las contraseñas no coinciden',
-  path: ['confirmPassword'],
+}).superRefine((data, ctx) => {
+  if (data.password !== data.confirmPassword) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Las contraseñas no coinciden',
+      path: ['confirmPassword'],
+    });
+  }
 });
 
 type RegisterFormData = z.infer<typeof registerSchema>;
@@ -65,6 +72,24 @@ export function RegisterForm() {
   const onSubmit = async (data: RegisterFormData) => {
     try {
       setIsLoading(true);
+
+      if (userType === 'team-leader') {
+        const equipoNombre = data.equipoNombre?.trim() ?? '';
+        if (equipoNombre.length < 2) {
+          form.setError('equipoNombre', {
+            message: 'El nombre del equipo es requerido (mín. 2 caracteres)',
+          });
+          return;
+        }
+        if (equipoNombre.length > 100) {
+          form.setError('equipoNombre', { message: 'Máximo 100 caracteres' });
+          return;
+        }
+        if ((data.equipoDescripcion?.length ?? 0) > 500) {
+          form.setError('equipoDescripcion', { message: 'Máximo 500 caracteres' });
+          return;
+        }
+      }
       
       // Enviar código de verificación en lugar de registrar directamente
       await sendVerificationCode({

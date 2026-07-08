@@ -114,12 +114,25 @@ export function debounce<T extends (...args: any[]) => any>(
 }
 
 // Error formatting
-export const formatApiError = (error: any): string => {
-  if (error?.response?.data?.message) {
-    return error.response.data.message;
+export const formatApiError = (error: unknown): string => {
+  if (error && typeof error === 'object' && 'errors' in error) {
+    const apiError = error as { message?: string; errors?: Record<string, string> };
+    if (apiError.errors && Object.keys(apiError.errors).length > 0) {
+      return Object.values(apiError.errors).join('. ');
+    }
   }
-  if (error?.message) {
+  if (error && typeof error === 'object' && 'response' in error) {
+    const response = (error as { response?: { data?: { message?: string } } }).response;
+    if (response?.data?.message) {
+      return response.data.message;
+    }
+  }
+  if (error instanceof Error && error.message) {
     return error.message;
+  }
+  if (error && typeof error === 'object' && 'message' in error) {
+    const message = (error as { message?: string }).message;
+    if (message) return message;
   }
   return 'Ha ocurrido un error inesperado';
 };

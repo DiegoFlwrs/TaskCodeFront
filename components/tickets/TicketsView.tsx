@@ -51,15 +51,15 @@ function createTicketSchema(existingTickets: Ticket[], editingId?: string) {
   return z
     .object({
       teamId: z.string().optional(),
-      codigo: z.string().min(1, "Requerido"),
-      nombre: z.string().min(1, "Requerido"),
-      descripcion: z.string(),
-      asignadoPor: z.string(),
-      fechaInicio: z.string().optional(),
-      fechaFin: z.string().optional(),
+      codigo: z.string().min(1, "Requerido").max(50, "Máximo 50 caracteres"),
+      nombre: z.string().min(1, "Requerido").max(255, "Máximo 255 caracteres"),
+      descripcion: z.string().max(5000, "Máximo 5000 caracteres"),
+      asignadoPor: z.string().max(100, "Máximo 100 caracteres"),
+      fechaInicio: z.string().min(1, "La fecha de inicio es requerida"),
+      fechaFin: z.string().min(1, "La fecha de fin es requerida"),
       priority: z.enum(["alta", "media", "baja"]),
       status: z.enum(["activo", "completado", "cancelado"]).optional(),
-      assignedMemberIds: z.array(z.string()).optional(),
+      assignedMemberIds: z.array(z.string()).max(50).optional(),
     })
     .superRefine((data, ctx) => {
       const nombre = data.nombre.trim().toLowerCase();
@@ -76,6 +76,28 @@ function createTicketSchema(existingTickets: Ticket[], editingId?: string) {
           code: z.ZodIssueCode.custom,
           message: "Ya existe un ticket con este nombre",
           path: ["nombre"],
+        });
+      }
+
+      if (data.fechaInicio && data.fechaFin && data.fechaFin < data.fechaInicio) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "La fecha de fin no puede ser anterior a la de inicio",
+          path: ["fechaFin"],
+        });
+      }
+
+      const duplicateCodigo = existingTickets.some((t) => {
+        if (editingId && t.id === editingId) return false;
+        if (teamId) return t.teamId === teamId && t.codigo.trim().toLowerCase() === data.codigo.trim().toLowerCase();
+        return !t.teamId && t.codigo.trim().toLowerCase() === data.codigo.trim().toLowerCase();
+      });
+
+      if (duplicateCodigo) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Ya existe un ticket con este código",
+          path: ["codigo"],
         });
       }
     });
