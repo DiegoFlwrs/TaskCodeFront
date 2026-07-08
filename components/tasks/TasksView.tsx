@@ -211,9 +211,12 @@ export function TasksView() {
               dayMaxEvents={2}
               eventClassNames="cursor-pointer"
               dayCellClassNames="cursor-pointer hover:bg-muted/50 transition-colors"
+              buttonIcons={false}
               buttonText={{
                 today: "Hoy",
                 month: "Mes",
+                prev: "‹",
+                next: "›",
               }}
             />
           </CardContent>

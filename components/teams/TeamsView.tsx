@@ -28,6 +28,7 @@ import { cn } from '../../lib/utils';
 import { validatePassword } from '../../lib/utils';
 import { useToastManager } from '../ui/toast-manager';
 import apiClient from '../../lib/api';
+import { CACHE_TTL, fetchCached, getCached, invalidateCache } from '../../lib/api-cache';
 import { useUser } from '../../hooks/useAuth';
 import { TeamStatsModal } from './TeamStatsModal';
 import type { StatsMember } from './TeamStatsModal';
@@ -188,10 +189,24 @@ function MemberModal({
       if (!member) {
         setTab('existing');
         setUsersLoading(true);
-        apiClient.request<SystemUser[] | SystemUser>('/api/users')
-          .then((data) => setSystemUsers(Array.isArray(data) ? data : [data]))
-          .catch(() => setSystemUsers([]))
-          .finally(() => setUsersLoading(false));
+        const usersKey = 'api:users:all';
+        const cachedUsers = getCached<SystemUser[]>(usersKey);
+        if (cachedUsers) {
+          setSystemUsers(cachedUsers);
+          setUsersLoading(false);
+        } else {
+          fetchCached(
+            usersKey,
+            async () => {
+              const data = await apiClient.request<SystemUser[] | SystemUser>('/api/users');
+              return Array.isArray(data) ? data : [data];
+            },
+            CACHE_TTL.users,
+          )
+            .then(setSystemUsers)
+            .catch(() => setSystemUsers([]))
+            .finally(() => setUsersLoading(false));
+        }
       }
     }
   }, [open, member]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -698,9 +713,22 @@ export function TeamsView() {
 
   const [teams, setTeams] = useState<Team[]>([]);
 
-  const fetchTeams = useCallback(async () => {
+  const fetchTeams = useCallback(async (force = false) => {
+    const cacheKey = 'api:teams:all';
     try {
-      const data = await apiClient.request<Team[]>('/api/teams');
+      if (!force) {
+        const cached = getCached<Team[]>(cacheKey);
+        if (cached) {
+          setTeams(cached);
+          return;
+        }
+      }
+      const data = await fetchCached(
+        cacheKey,
+        () => apiClient.request<Team[]>('/api/teams'),
+        CACHE_TTL.teams,
+        { force },
+      );
       setTeams(data);
     } catch {
       // silently keep empty
@@ -738,6 +766,8 @@ export function TeamsView() {
         setTeams((prev) => [...prev, team]);
         toast.success('Equipo creado', data.nombre);
       }
+      invalidateCache('api:teams');
+      invalidateCache('api:stats');
     } catch {
       toast.error('Error', 'No se pudo guardar el equipo');
     }
@@ -748,6 +778,8 @@ export function TeamsView() {
     try {
       await apiClient.request<void>(`/api/teams/${id}`, { method: 'DELETE' });
       setTeams((prev) => prev.filter((t) => t.id !== id));
+      invalidateCache('api:teams');
+      invalidateCache('api:stats');
       toast.success('Equipo eliminado', '');
     } catch {
       toast.error('Error', 'No se pudo eliminar el equipo');
@@ -805,6 +837,9 @@ export function TeamsView() {
         );
         toast.success('Miembro creado', newMember.nombre);
       }
+      invalidateCache('api:teams');
+      invalidateCache('api:stats');
+      invalidateCache('api:users');
     } catch {
       toast.error('Error', 'No se pudo guardar el miembro');
     }
@@ -829,6 +864,9 @@ export function TeamsView() {
         result.accountDeleted ? 'Cuenta eliminada' : 'Miembro removido',
         result.message,
       );
+      invalidateCache('api:teams');
+      invalidateCache('api:stats');
+      invalidateCache('api:users');
     } catch {
       toast.error('Error', 'No se pudo eliminar el miembro');
     }

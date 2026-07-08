@@ -27,6 +27,7 @@ import { useToastManager } from "../ui/toast-manager";
 import { useTickets } from "../../hooks/useTickets";
 import { useUser } from "../../hooks/useAuth";
 import apiClient from "../../lib/api";
+import { CACHE_TTL, fetchCached, getCached } from "../../lib/api-cache";
 import {
   Ticket,
   TicketFormData,
@@ -459,8 +460,17 @@ export function TicketsView() {
   const [alertDismissed, setAlertDismissed] = useState(false);
 
   useEffect(() => {
-    apiClient
-      .request<TeamOption[]>("/api/teams")
+    const cacheKey = "api:teams:all";
+    const cached = getCached<TeamOption[]>(cacheKey);
+    if (cached) {
+      setTeams(cached);
+      return;
+    }
+    fetchCached(
+      cacheKey,
+      () => apiClient.request<TeamOption[]>("/api/teams"),
+      CACHE_TTL.teams,
+    )
       .then(setTeams)
       .catch(() => {});
   }, []);

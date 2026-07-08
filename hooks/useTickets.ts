@@ -3,15 +3,31 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Ticket, TicketFormData } from '../lib/ticket-types';
 import apiClient from '../lib/api';
+import { CACHE_TTL, fetchCached, getCached, invalidateCache } from '../lib/api-cache';
+
+const CACHE_KEY = 'api:tickets:all';
 
 export function useTickets() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchAll = useCallback(async () => {
+  const fetchAll = useCallback(async (force = false) => {
     try {
+      if (!force) {
+        const cached = getCached<Ticket[]>(CACHE_KEY);
+        if (cached) {
+          setTickets(cached);
+          setLoading(false);
+          return;
+        }
+      }
       setLoading(true);
-      const data = await apiClient.request<Ticket[]>('/api/tickets');
+      const data = await fetchCached(
+        CACHE_KEY,
+        () => apiClient.request<Ticket[]>('/api/tickets'),
+        CACHE_TTL.lists,
+        { force },
+      );
       setTickets(data);
     } catch {
       // keep empty on error
@@ -22,11 +38,15 @@ export function useTickets() {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
+  const invalidate = () => invalidateCache('api:tickets');
+
   const addTicket = useCallback(async (data: TicketFormData): Promise<Ticket> => {
     const ticket = await apiClient.request<Ticket>('/api/tickets', {
       method: 'POST',
       body: JSON.stringify(data),
     });
+      invalidate();
+      invalidateCache('api:stats');
     setTickets((prev) => [...prev, ticket]);
     return ticket;
   }, []);
@@ -36,6 +56,8 @@ export function useTickets() {
       method: 'PUT',
       body: JSON.stringify(data),
     });
+      invalidate();
+      invalidateCache('api:stats');
     setTickets((prev) => prev.map((t) => (t.id === id ? updated : t)));
   }, []);
 
@@ -44,11 +66,15 @@ export function useTickets() {
       method: 'PUT',
       body: JSON.stringify(data),
     });
+      invalidate();
+      invalidateCache('api:stats');
     setTickets((prev) => prev.map((t) => (t.id === id ? updated : t)));
   }, []);
 
   const deleteTicket = useCallback(async (id: string): Promise<void> => {
     await apiClient.request<void>(`/api/tickets/${id}`, { method: 'DELETE' });
+      invalidate();
+      invalidateCache('api:stats');
     setTickets((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
@@ -61,6 +87,8 @@ export function useTickets() {
       method: 'POST',
       body: JSON.stringify({ fechaFin, motivo }),
     });
+      invalidate();
+      invalidateCache('api:stats');
     setTickets((prev) => prev.map((t) => (t.id === id ? updated : t)));
     return updated;
   }, []);
@@ -73,6 +101,8 @@ export function useTickets() {
       method: 'POST',
       body: JSON.stringify({ approved }),
     });
+      invalidate();
+      invalidateCache('api:stats');
     setTickets((prev) => prev.map((t) => (t.id === id ? updated : t)));
     return updated;
   }, []);

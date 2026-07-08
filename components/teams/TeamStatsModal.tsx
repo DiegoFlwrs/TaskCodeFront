@@ -9,6 +9,7 @@ import {
 import { Button } from '../ui/button';
 import { cn } from '../../lib/utils';
 import apiClient from '../../lib/api';
+import { CACHE_TTL, fetchCached, getCached } from '../../lib/api-cache';
 
 // ---- Types ----
 type MemberRole = 'LEADER' | 'DEVELOPER' | 'QA' | 'DESIGNER' | 'DEVOPS';
@@ -622,27 +623,44 @@ export function TeamStatsModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const fetchStats = useCallback(async () => {
+  const fetchStats = useCallback(async (force = false) => {
     if (!team) return;
+
+    const cacheKey = `api:stats:${team.id}:${dateRange.from}:${dateRange.to}`;
+
+    if (!force) {
+      const cached = getCached<MemberStatsData[]>(cacheKey);
+      if (cached) {
+        setStats(cached);
+        setLoading(false);
+        setError('');
+        return;
+      }
+    }
+
     setLoading(true);
     setError('');
     try {
       const params = new URLSearchParams({
         fechaInicio: dateRange.from,
         fechaFin: dateRange.to,
-        ...(selectedMemberId !== 'all' ? { memberId: selectedMemberId } : {}),
       });
-      const data = await apiClient.request<MemberStatsData | MemberStatsData[]>(
-        `/api/teams/${team.id}/stats?${params.toString()}`
+      const data = await fetchCached(
+        cacheKey,
+        () => apiClient.request<MemberStatsData | MemberStatsData[]>(
+          `/api/teams/${team.id}/stats?${params.toString()}`
+        ),
+        CACHE_TTL.stats,
+        { force },
       );
-      const list = Array.isArray(data) ? data : [data];
-      setStats(list.map(normalizeStats));
+      const list = (Array.isArray(data) ? data : [data]).map(normalizeStats);
+      setStats(list);
     } catch {
       setError('No se pudieron cargar las estadísticas');
     } finally {
       setLoading(false);
     }
-  }, [team, dateRange, selectedMemberId]);
+  }, [team, dateRange]);
 
   useEffect(() => {
     if (open) {
@@ -662,9 +680,14 @@ export function TeamStatsModal({
     setDateRange(presetRange(p));
   };
 
+  const displayedStats =
+    selectedMemberId === 'all'
+      ? stats
+      : stats.filter(s => s.memberId === selectedMemberId);
+
   const selectedMemberData =
     selectedMemberId === 'all' ? null
-      : stats.find(s => s.memberId === selectedMemberId) ?? null;
+      : displayedStats[0] ?? null;
 
   const periodDays = daysBetween(dateRange.from, dateRange.to);
 
@@ -738,7 +761,7 @@ export function TeamStatsModal({
                   onChange={e => { setPreset(null); setDateRange(r => ({ ...r, to: e.target.value })); }}
                   className="h-8 px-2 rounded-md border bg-background text-xs focus:outline-none focus:ring-2 focus:ring-ring"
                 />
-                <Button size="sm" variant="outline" className="h-8 px-3 text-xs" onClick={fetchStats}>
+                <Button size="sm" variant="outline" className="h-8 px-3 text-xs" onClick={() => fetchStats(true)}>
                   Aplicar
                 </Button>
               </div>
@@ -755,7 +778,7 @@ export function TeamStatsModal({
             ) : error ? (
               <div className="py-12 text-center text-destructive text-sm">{error}</div>
             ) : selectedMemberId === 'all' ? (
-              <AllMembersDashboard data={stats} days={periodDays} />
+              <AllMembersDashboard data={displayedStats} days={periodDays} />
             ) : selectedMemberData ? (
               <SingleMemberDashboard data={selectedMemberData} days={periodDays} />
             ) : (
