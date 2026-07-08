@@ -28,6 +28,7 @@ import { cn } from '../../lib/utils';
 import { validatePassword } from '../../lib/utils';
 import { useToastManager } from '../ui/toast-manager';
 import apiClient from '../../lib/api';
+import { CACHE_TTL, fetchCached, getCached, invalidateCache } from '../../lib/api-cache';
 import { useUser } from '../../hooks/useAuth';
 import { TeamStatsModal } from './TeamStatsModal';
 import type { StatsMember } from './TeamStatsModal';
@@ -81,13 +82,13 @@ const ROLE_COLORS: Record<MemberRole, string> = {
 
 // ---- Schemas ----
 const teamSchema = z.object({
-  nombre: z.string().min(1, 'Requerido'),
-  descripcion: z.string(),
+  nombre: z.string().min(1, 'Requerido').max(150, 'Máximo 150 caracteres'),
+  descripcion: z.string().max(2000, 'Máximo 2000 caracteres'),
 });
 
 const memberSchema = z.object({
-  nombre: z.string().min(1, 'Requerido'),
-  email: z.string().email('Email inválido'),
+  nombre: z.string().min(1, 'Requerido').max(100, 'Máximo 100 caracteres'),
+  email: z.string().email('Email inválido').max(150, 'Máximo 150 caracteres'),
   role: z.enum(['LEADER', 'DEVELOPER', 'QA', 'DESIGNER', 'DEVOPS']),
   status: z.enum(['activo', 'inactivo']),
   passwordMode: z.enum(['manual', 'auto']).optional(),
@@ -95,8 +96,22 @@ const memberSchema = z.object({
   confirmPassword: z.string().optional(),
 }).superRefine((data, ctx) => {
   if (data.passwordMode === 'manual') {
+    if (!data.password || data.password.length < 6) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'La contraseña debe tener al menos 6 caracteres',
+        path: ['password'],
+      });
+    }
+    if ((data.password?.length ?? 0) > 128) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'La contraseña no puede superar 128 caracteres',
+        path: ['password'],
+      });
+    }
     const result = validatePassword(data.password ?? '');
-    if (!result.isValid) {
+    if (data.password && !result.isValid) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'La contraseña no cumple los requisitos', path: ['password'] });
     }
     if (data.password !== data.confirmPassword) {
@@ -174,10 +189,24 @@ function MemberModal({
       if (!member) {
         setTab('existing');
         setUsersLoading(true);
-        apiClient.request<SystemUser[] | SystemUser>('/api/users')
-          .then((data) => setSystemUsers(Array.isArray(data) ? data : [data]))
-          .catch(() => setSystemUsers([]))
-          .finally(() => setUsersLoading(false));
+        const usersKey = 'api:users:all';
+        const cachedUsers = getCached<SystemUser[]>(usersKey);
+        if (cachedUsers) {
+          setSystemUsers(cachedUsers);
+          setUsersLoading(false);
+        } else {
+          fetchCached(
+            usersKey,
+            async () => {
+              const data = await apiClient.request<SystemUser[] | SystemUser>('/api/users');
+              return Array.isArray(data) ? data : [data];
+            },
+            CACHE_TTL.users,
+          )
+            .then(setSystemUsers)
+            .catch(() => setSystemUsers([]))
+            .finally(() => setUsersLoading(false));
+        }
       }
     }
   }, [open, member]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -684,9 +713,22 @@ export function TeamsView() {
 
   const [teams, setTeams] = useState<Team[]>([]);
 
-  const fetchTeams = useCallback(async () => {
+  const fetchTeams = useCallback(async (force = false) => {
+    const cacheKey = 'api:teams:all';
     try {
-      const data = await apiClient.request<Team[]>('/api/teams');
+      if (!force) {
+        const cached = getCached<Team[]>(cacheKey);
+        if (cached) {
+          setTeams(cached);
+          return;
+        }
+      }
+      const data = await fetchCached(
+        cacheKey,
+        () => apiClient.request<Team[]>('/api/teams'),
+        CACHE_TTL.teams,
+        { force },
+      );
       setTeams(data);
     } catch {
       // silently keep empty
@@ -724,6 +766,8 @@ export function TeamsView() {
         setTeams((prev) => [...prev, team]);
         toast.success('Equipo creado', data.nombre);
       }
+      invalidateCache('api:teams');
+      invalidateCache('api:stats');
     } catch {
       toast.error('Error', 'No se pudo guardar el equipo');
     }
@@ -734,6 +778,8 @@ export function TeamsView() {
     try {
       await apiClient.request<void>(`/api/teams/${id}`, { method: 'DELETE' });
       setTeams((prev) => prev.filter((t) => t.id !== id));
+      invalidateCache('api:teams');
+      invalidateCache('api:stats');
       toast.success('Equipo eliminado', '');
     } catch {
       toast.error('Error', 'No se pudo eliminar el equipo');
@@ -791,6 +837,9 @@ export function TeamsView() {
         );
         toast.success('Miembro creado', newMember.nombre);
       }
+      invalidateCache('api:teams');
+      invalidateCache('api:stats');
+      invalidateCache('api:users');
     } catch {
       toast.error('Error', 'No se pudo guardar el miembro');
     }
@@ -802,13 +851,22 @@ export function TeamsView() {
     if (!deleteMemberConfirm) return;
     const { teamId, memberId } = deleteMemberConfirm;
     try {
-      await apiClient.request<void>(`/api/teams/${teamId}/members/${memberId}`, { method: 'DELETE' });
+      const result = await apiClient.request<{ message: string; accountDeleted: boolean }>(
+        `/api/teams/${teamId}/members/${memberId}`,
+        { method: 'DELETE' },
+      );
       setTeams((prev) =>
         prev.map((t) =>
           t.id === teamId ? { ...t, members: t.members.filter((m) => m.id !== memberId) } : t
         )
       );
-      toast.success('Miembro eliminado', '');
+      toast.success(
+        result.accountDeleted ? 'Cuenta eliminada' : 'Miembro removido',
+        result.message,
+      );
+      invalidateCache('api:teams');
+      invalidateCache('api:stats');
+      invalidateCache('api:users');
     } catch {
       toast.error('Error', 'No se pudo eliminar el miembro');
     }
@@ -912,11 +970,12 @@ export function TeamsView() {
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50" />
           <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-sm bg-card rounded-xl border shadow-xl p-6">
-            <Dialog.Title className="text-base font-semibold mb-2">Eliminar miembro</Dialog.Title>
+            <Dialog.Title className="text-base font-semibold mb-2">Quitar del equipo</Dialog.Title>
             <p className="text-sm text-muted-foreground leading-relaxed mb-5">
-              La cuenta de{' '}
+              Se quitará a{' '}
               <span className="font-medium text-foreground">{deleteMemberConfirm?.nombre}</span>{' '}
-              y todos sus registros asociados serán eliminados permanentemente. Esta acción no se puede deshacer.
+              de este equipo. Si no pertenece a ningún otro equipo, su cuenta y datos también
+              serán eliminados permanentemente.
             </p>
             <div className="flex gap-3 justify-end">
               <Button variant="outline" onClick={() => setDeleteMemberConfirm(null)}>Cancelar</Button>
@@ -924,7 +983,7 @@ export function TeamsView() {
                 variant="destructive"
                 onClick={handleDeleteMember}
               >
-                Sí, eliminar
+                Quitar del equipo
               </Button>
             </div>
           </Dialog.Content>

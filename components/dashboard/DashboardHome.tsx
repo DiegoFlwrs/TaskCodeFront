@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { useUser } from '../../hooks/useAuth';
 import { useTickets } from '../../hooks/useTickets';
 import { useTasks } from '../../hooks/useTasks';
@@ -9,6 +10,7 @@ import { TASK_STATUS_COLORS, TASK_STATUS_LABELS } from '../../lib/task-types';
 import { cn } from '../../lib/utils';
 import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
+import { TicketUrgentAlert } from '../tickets/TicketUrgentAlert';
 import {
   CheckSquare,
   Clock,
@@ -18,10 +20,9 @@ import {
   Activity,
   Target,
   Zap,
-  AlertTriangle,
   Ticket,
   AppWindow,
-  Users,
+  BarChart2,
 } from 'lucide-react';
 
 const quickActions = [
@@ -50,12 +51,12 @@ const quickActions = [
     bg: 'bg-emerald-500/10',
   },
   {
-    label: 'Equipos',
-    description: 'Administra miembros y roles',
-    href: '/dashboard/teams',
-    icon: Users,
-    color: 'text-amber-500',
-    bg: 'bg-amber-500/10',
+    label: 'Reportes',
+    description: 'Consulta y exporta actividades',
+    href: '/dashboard/reports',
+    icon: BarChart2,
+    color: 'text-primary',
+    bg: 'bg-primary/10',
   },
 ];
 
@@ -87,6 +88,12 @@ export function DashboardHome() {
     const l = getAlarmLevel(t.fechaFin, t.status);
     return l === 'vencido' || l === 'critico' || l === 'urgente';
   });
+
+  const [alertDismissed, setAlertDismissed] = useState(false);
+
+  useEffect(() => {
+    setAlertDismissed(false);
+  }, [urgentTickets.length]);
 
   const activeTickets = tickets.filter((t) => t.status === 'activo').length;
 
@@ -135,26 +142,13 @@ export function DashboardHome() {
           </h2>
           <p className="text-muted-foreground mt-1 capitalize">{formattedDate}</p>
         </div>
-        <Link href="/dashboard/tasks">
+        {/* <Link href="/dashboard/tasks">
           <Button className="gap-2">
             <Plus className="h-4 w-4" />
             Nueva tarea
           </Button>
-        </Link>
+        </Link> */}
       </div>
-
-      {/* Ticket alert banner */}
-      {urgentTickets.length > 0 && (
-        <Link href="/dashboard/tickets">
-          <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 transition-colors cursor-pointer dark:bg-red-900/20 dark:border-red-800 dark:text-red-400">
-            <AlertTriangle className="h-5 w-5 shrink-0" />
-            <p className="text-sm font-medium flex-1">
-              {urgentTickets.length} ticket{urgentTickets.length !== 1 ? 's' : ''} requiere{urgentTickets.length === 1 ? '' : 'n'} atención inmediata
-            </p>
-            <ArrowRight className="h-4 w-4 shrink-0" />
-          </div>
-        </Link>
-      )}
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -273,6 +267,15 @@ export function DashboardHome() {
           )}
         </Card>
       </div>
+
+      {urgentTickets.length > 0 && (
+        <TicketUrgentAlert
+          count={urgentTickets.length}
+          dismissed={alertDismissed}
+          onDismiss={() => setAlertDismissed(true)}
+          action={{ label: 'Ver tickets', href: '/dashboard/tickets' }}
+        />
+      )}
     </div>
   );
 }

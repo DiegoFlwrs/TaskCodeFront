@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -10,23 +10,24 @@ import {
   Pencil,
   Trash2,
   X,
-  AlertTriangle,
   Clock,
   Filter,
   CheckCircle2,
   XCircle,
   CalendarClock,
   Ticket as TicketIcon,
+  ClipboardCheck,
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-import { cn } from "../../lib/utils";
+import { cn, formatApiError } from "../../lib/utils";
 import { useToastManager } from "../ui/toast-manager";
 import { useTickets } from "../../hooks/useTickets";
+import { useUser } from "../../hooks/useAuth";
 import apiClient from "../../lib/api";
-``;
+import { CACHE_TTL, fetchCached, getCached } from "../../lib/api-cache";
 import {
   Ticket,
   TicketFormData,
@@ -41,25 +42,81 @@ import {
   AlarmLevel,
 } from "../../lib/ticket-types";
 import { ExtendModal } from "./modals/ExtendModal";
+import { ReviewExtensionModal } from "./modals/ReviewExtensionModal";
+import { AssignedMembersAvatars } from "./AssignedMembersAvatars";
+import { TicketStatusBadge } from "./TicketStatusBadge";
+import { TicketUrgentAlert } from "./TicketUrgentAlert";
 
 // ---- Schema ----
-const schema = z.object({
-  teamId: z.string().optional(),
-  codigo: z.string().min(1, "Requerido"),
-  nombre: z.string().min(1, "Requerido"),
-  descripcion: z.string(),
-  asignadoPor: z.string(),
-  fechaInicio: z.string().optional(),
-  fechaFin: z.string().optional(),
-  priority: z.enum(["alta", "media", "baja"]),
-  status: z.enum(["activo", "completado", "cancelado"]).optional(),
-});
+function createTicketSchema(existingTickets: Ticket[], editingId?: string) {
+  return z
+    .object({
+      teamId: z.string().optional(),
+      codigo: z.string().min(1, "Requerido").max(50, "Máximo 50 caracteres"),
+      nombre: z.string().min(1, "Requerido").max(255, "Máximo 255 caracteres"),
+      descripcion: z.string().max(5000, "Máximo 5000 caracteres"),
+      asignadoPor: z.string().max(100, "Máximo 100 caracteres"),
+      fechaInicio: z.string().min(1, "La fecha de inicio es requerida"),
+      fechaFin: z.string().min(1, "La fecha de fin es requerida"),
+      priority: z.enum(["alta", "media", "baja"]),
+      status: z.enum(["activo", "completado", "cancelado"]).optional(),
+      assignedMemberIds: z.array(z.string()).max(50).optional(),
+    })
+    .superRefine((data, ctx) => {
+      const nombre = data.nombre.trim().toLowerCase();
+      const teamId = data.teamId || undefined;
 
-type FormData = z.infer<typeof schema>;
+      const duplicate = existingTickets.some((t) => {
+        if (editingId && t.id === editingId) return false;
+        if (teamId) return t.teamId === teamId && t.nombre.trim().toLowerCase() === nombre;
+        return !t.teamId && t.nombre.trim().toLowerCase() === nombre;
+      });
+
+      if (duplicate) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Ya existe un ticket con este nombre",
+          path: ["nombre"],
+        });
+      }
+
+      if (data.fechaInicio && data.fechaFin && data.fechaFin < data.fechaInicio) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "La fecha de fin no puede ser anterior a la de inicio",
+          path: ["fechaFin"],
+        });
+      }
+
+      const duplicateCodigo = existingTickets.some((t) => {
+        if (editingId && t.id === editingId) return false;
+        if (teamId) return t.teamId === teamId && t.codigo.trim().toLowerCase() === data.codigo.trim().toLowerCase();
+        return !t.teamId && t.codigo.trim().toLowerCase() === data.codigo.trim().toLowerCase();
+      });
+
+      if (duplicateCodigo) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Ya existe un ticket con este código",
+          path: ["codigo"],
+        });
+      }
+    });
+}
+
+type FormData = z.infer<ReturnType<typeof createTicketSchema>>;
+
+interface TeamMemberOption {
+  id: string;
+  nombre: string;
+  email: string;
+  status: string;
+}
 
 interface TeamOption {
   id: string;
   nombre: string;
+  members?: TeamMemberOption[];
 }
 
 // ---- Ticket Form Modal ----
@@ -69,17 +126,25 @@ function TicketModal({
   onSave,
   ticket,
   teams,
+  isTeamLeader,
+  existingTickets,
 }: {
   open: boolean;
   onClose: () => void;
   onSave: (data: TicketFormData) => Promise<void>;
   ticket?: Ticket | null;
   teams: TeamOption[];
+  isTeamLeader: boolean;
+  existingTickets: Ticket[];
 }) {
   const isEditing = Boolean(ticket);
   const [isLoading, setIsLoading] = useState(false);
+  const ticketSchema = useMemo(
+    () => createTicketSchema(existingTickets, ticket?.id),
+    [existingTickets, ticket?.id],
+  );
   const form = useForm<FormData>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(ticketSchema),
     defaultValues: ticket ?? {
       teamId: "",
       codigo: "",
@@ -90,8 +155,15 @@ function TicketModal({
       fechaFin: "",
       priority: "media",
       status: "activo",
+      assignedMemberIds: [],
     },
   });
+
+  const selectedTeamId = form.watch("teamId");
+  const selectedTeam = teams.find((t) => t.id === selectedTeamId);
+  const activeMembers =
+    selectedTeam?.members?.filter((m) => m.status === "activo") ?? [];
+  const assignedMemberIds = form.watch("assignedMemberIds") ?? [];
 
   useEffect(() => {
     setIsLoading(false);
@@ -107,6 +179,8 @@ function TicketModal({
             fechaFin: ticket.fechaFin ?? "",
             priority: ticket.priority,
             status: ticket.status,
+            assignedMemberIds:
+              ticket.assignedMembers?.map((m) => m.id) ?? [],
           }
         : {
             teamId: teams.length > 0 ? teams[0].id : "",
@@ -118,9 +192,18 @@ function TicketModal({
             fechaFin: "",
             priority: "media",
             status: "activo",
+            assignedMemberIds: [],
           },
     );
   }, [ticket, open, form, teams]);
+
+  const toggleMember = (memberId: string) => {
+    const current = form.getValues("assignedMemberIds") ?? [];
+    const next = current.includes(memberId)
+      ? current.filter((id) => id !== memberId)
+      : [...current, memberId];
+    form.setValue("assignedMemberIds", next);
+  };
 
   return (
     <Dialog.Root open={open} onOpenChange={(v) => !v && onClose()}>
@@ -163,7 +246,9 @@ function TicketModal({
               <div className="space-y-1.5">
                 <Label>Equipo</Label>
                 <select
-                  {...form.register("teamId")}
+                  {...form.register("teamId", {
+                    onChange: () => form.setValue("assignedMemberIds", []),
+                  })}
                   className="w-full h-9 px-3 rounded-md border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 >
                   {teams.map((t) => (
@@ -172,6 +257,41 @@ function TicketModal({
                     </option>
                   ))}
                 </select>
+              </div>
+            )}
+
+            {isTeamLeader && teams.length > 0 && (
+              <div className="space-y-1.5">
+                <Label>Asignar a miembros del equipo</Label>
+                {activeMembers.length === 0 ? (
+                  <p className="text-xs text-muted-foreground py-2">
+                    No hay miembros activos en este equipo
+                  </p>
+                ) : (
+                  <div className="rounded-md border divide-y max-h-40 overflow-y-auto">
+                    {activeMembers.map((member) => (
+                      <label
+                        key={member.id}
+                        className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-muted/50 transition-colors"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={assignedMemberIds.includes(member.id)}
+                          onChange={() => toggleMember(member.id)}
+                          className="rounded border-input accent-primary"
+                        />
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">
+                            {member.nombre}
+                          </p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {member.email}
+                          </p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
             <div className="grid grid-cols-2 gap-4">
@@ -323,9 +443,10 @@ type FilterStatus = "todos" | TicketStatus;
 
 // ---- Main view ----
 export function TicketsView() {
-  const { tickets, addTicket, updateTicket, deleteTicket, updateTicketStatus } =
+  const { tickets, addTicket, updateTicket, deleteTicket, updateTicketStatus, requestExtension, reviewExtension } =
     useTickets();
   const { toast } = useToastManager();
+  const { isTeamLeader } = useUser();
   const [teams, setTeams] = useState<TeamOption[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTicket, setEditingTicket] = useState<Ticket | null>(null);
@@ -335,10 +456,21 @@ export function TicketsView() {
     useState<Ticket | null>(null);
 
   const [extendTicket, setExtendTicket] = useState<Ticket | null>(null);
+  const [reviewExtensionTicket, setReviewExtensionTicket] = useState<Ticket | null>(null);
+  const [alertDismissed, setAlertDismissed] = useState(false);
 
   useEffect(() => {
-    apiClient
-      .request<TeamOption[]>("/api/teams")
+    const cacheKey = "api:teams:all";
+    const cached = getCached<TeamOption[]>(cacheKey);
+    if (cached) {
+      setTeams(cached);
+      return;
+    }
+    fetchCached(
+      cacheKey,
+      () => apiClient.request<TeamOption[]>("/api/teams"),
+      CACHE_TTL.teams,
+    )
       .then(setTeams)
       .catch(() => {});
   }, []);
@@ -348,6 +480,10 @@ export function TicketsView() {
     const l = getAlarmLevel(t.fechaFin, t.status);
     return l === "vencido" || l === "critico" || l === "urgente";
   }).length;
+
+  useEffect(() => {
+    setAlertDismissed(false);
+  }, [alertCount]);
 
   const filtered = tickets.filter((t) => {
     const matchStatus = filterStatus === "todos" || t.status === filterStatus;
@@ -368,7 +504,7 @@ export function TicketsView() {
         toast.success("Ticket creado", data.codigo);
       }
     } catch (err) {
-      toast.error("Error", "No se pudo guardar el ticket");
+      toast.error("Error", formatApiError(err));
       throw err;
     }
   };
@@ -397,15 +533,36 @@ export function TicketsView() {
     motivo: string,
   ) => {
     try {
-      // await extendTicket(ticket.id, { fechaFin, motivoExtension: motivo });
-      await updateTicketStatus(ticket.id, {
-        ...ticket,
-        motivo: motivo,
-        fechaFin,
-      });
-      toast.success("Fecha extendida", `${ticket.codigo} → ${fechaFin}`);
+      if (ticket.canRequestExtension) {
+        await requestExtension(ticket.id, fechaFin, motivo);
+        toast.success(
+          "Solicitud enviada",
+          "El líder de equipo debe aprobar la extensión",
+        );
+      } else {
+        await updateTicketStatus(ticket.id, {
+          ...ticket,
+          motivo,
+          fechaFin,
+        });
+        toast.success("Fecha extendida", `${ticket.codigo} → ${fechaFin}`);
+      }
     } catch {
-      toast.error("Error", "No se pudo extender el ticket");
+      toast.error("Error", "No se pudo procesar la extensión");
+      throw new Error("extension failed");
+    }
+  };
+
+  const handleReviewExtension = async (ticket: Ticket, approved: boolean) => {
+    try {
+      await reviewExtension(ticket.id, approved);
+      toast.success(
+        approved ? "Extensión aprobada" : "Extensión rechazada",
+        ticket.codigo,
+      );
+    } catch {
+      toast.error("Error", "No se pudo procesar la solicitud");
+      throw new Error("review failed");
     }
   };
 
@@ -441,17 +598,6 @@ export function TicketsView() {
           <Plus className="h-4 w-4" /> Nuevo ticket
         </Button>
       </div>
-
-      {/* Alert banner */}
-      {alertCount > 0 && (
-        <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-400">
-          <AlertTriangle className="h-5 w-5 shrink-0" />
-          <p className="text-sm font-medium">
-            {alertCount} ticket{alertCount !== 1 ? "s" : ""} requiere
-            {alertCount === 1 ? "" : "n"} atención inmediata
-          </p>
-        </div>
-      )}
 
       {/* Stats row */}
       {tickets.length > 0 && (
@@ -532,16 +678,20 @@ export function TicketsView() {
           </CardContent>
         </Card>
       ) : (
-        <Card className="border shadow-none overflow-hidden">
+        <Card id="tickets-table" className="border shadow-none overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               {(() => {
                 const showTeam = filtered.some((t) => t.teamNombre);
+                const showAssigned = filtered.some(
+                  (t) => (t.assignedMembers?.length ?? 0) > 0,
+                );
                 const headers = [
                   "Código",
                   "Nombre",
                   ...(showTeam ? ["Equipo"] : []),
                   "Asignado por",
+                  ...(showAssigned ? ["Asignados a"] : []),
                   "Prioridad",
                   "Estado",
                   "Inicio",
@@ -598,6 +748,13 @@ export function TicketsView() {
                             <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">
                               {ticket.asignadoPor || "—"}
                             </td>
+                            {showAssigned && (
+                              <td className="px-4 py-3">
+                                <AssignedMembersAvatars
+                                  members={ticket.assignedMembers ?? []}
+                                />
+                              </td>
+                            )}
                             <td className="px-4 py-3">
                               <span
                                 className={cn(
@@ -609,14 +766,7 @@ export function TicketsView() {
                               </span>
                             </td>
                             <td className="px-4 py-3">
-                              <span
-                                className={cn(
-                                  "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium",
-                                  TICKET_STATUS_COLORS[ticket.status],
-                                )}
-                              >
-                                {TICKET_STATUS_LABELS[ticket.status]}
-                              </span>
+                              <TicketStatusBadge ticket={ticket} />
                             </td>
                             <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap">
                               {ticket.fechaInicio}
@@ -646,40 +796,70 @@ export function TicketsView() {
                                       >
                                         <CheckCircle2 className="h-3.5 w-3.5" />
                                       </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-7 w-7 text-muted-foreground hover:text-amber-500"
-                                        title="Extender fecha"
-                                        onClick={() => setExtendTicket(ticket)}
-                                      >
-                                        <CalendarClock className="h-3.5 w-3.5" />
-                                      </Button>
-
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                                        onClick={() => {
-                                          setEditingTicket(ticket);
-                                          setModalOpen(true);
-                                        }}
-                                      >
-                                        <Pencil className="h-3.5 w-3.5" />
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                                        onClick={() =>
-                                          setDeleteConfirmTicket({
-                                            id: ticket.id,
-                                            codigo: ticket.codigo,
-                                          })
-                                        }
-                                      >
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                      </Button>
+                                      {ticket.canReviewExtension && (
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-7 w-7 text-muted-foreground hover:text-primary"
+                                          title="Revisar solicitud de extensión"
+                                          onClick={() =>
+                                            setReviewExtensionTicket(ticket)
+                                          }
+                                        >
+                                          <ClipboardCheck className="h-3.5 w-3.5" />
+                                        </Button>
+                                      )}
+                                      {ticket.canExtendDirectly &&
+                                        !ticket.canReviewExtension && (
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-7 w-7 text-muted-foreground hover:text-amber-500"
+                                          title="Extender fecha"
+                                          onClick={() => setExtendTicket(ticket)}
+                                        >
+                                          <CalendarClock className="h-3.5 w-3.5" />
+                                        </Button>
+                                      )}
+                                      {ticket.canRequestExtension && (
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-7 w-7 text-muted-foreground hover:text-amber-500"
+                                          title="Solicitar extensión"
+                                          onClick={() => setExtendTicket(ticket)}
+                                        >
+                                          <CalendarClock className="h-3.5 w-3.5" />
+                                        </Button>
+                                      )}
+                                      {ticket.canEdit && (
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                                          onClick={() => {
+                                            setEditingTicket(ticket);
+                                            setModalOpen(true);
+                                          }}
+                                        >
+                                          <Pencil className="h-3.5 w-3.5" />
+                                        </Button>
+                                      )}
+                                      {ticket.canDelete && (
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                                          onClick={() =>
+                                            setDeleteConfirmTicket({
+                                              id: ticket.id,
+                                              codigo: ticket.codigo,
+                                            })
+                                          }
+                                        >
+                                          <Trash2 className="h-3.5 w-3.5" />
+                                        </Button>
+                                      )}
                                     </>
                                   )}
                               </div>
@@ -705,6 +885,8 @@ export function TicketsView() {
         onSave={handleSave}
         ticket={editingTicket}
         teams={teams}
+        isTeamLeader={isTeamLeader}
+        existingTickets={tickets}
       />
 
       {/* Complete confirm dialog */}
@@ -754,8 +936,15 @@ export function TicketsView() {
       {/* Extend dialog */}
       <ExtendModal
         ticket={extendTicket}
+        mode={extendTicket?.canRequestExtension ? "request" : "direct"}
         onClose={() => setExtendTicket(null)}
-        onExtend={handleExtend}
+        onSubmit={handleExtend}
+      />
+
+      <ReviewExtensionModal
+        ticket={reviewExtensionTicket}
+        onClose={() => setReviewExtensionTicket(null)}
+        onReview={handleReviewExtension}
       />
 
       {/* Delete confirm dialog */}
@@ -804,6 +993,19 @@ export function TicketsView() {
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
+
+      <TicketUrgentAlert
+        count={alertCount}
+        dismissed={alertDismissed}
+        onDismiss={() => setAlertDismissed(true)}
+        action={{
+          label: "Ver en la tabla",
+          onClick: () =>
+            document
+              .getElementById("tickets-table")
+              ?.scrollIntoView({ behavior: "smooth", block: "start" }),
+        }}
+      />
     </div>
   );
 }

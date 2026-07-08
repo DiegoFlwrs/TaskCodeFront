@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import * as XLSX from 'xlsx';
 import { Search, Download, FileSpreadsheet, Calendar, Filter } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -11,14 +10,15 @@ import { Combobox } from '../ui/combobox';
 import { useTasks } from '../../hooks/useTasks';
 import { useTickets } from '../../hooks/useTickets';
 import { useApps } from '../../hooks/useApps';
+import { useUser } from '../../hooks/useAuth';
 import {
-  Task,
   TASK_STATUS_LABELS,
   TASK_PRIORITY_LABELS,
   TASK_STATUS_COLORS,
   TASK_PRIORITY_COLORS,
 } from '../../lib/task-types';
 import { cn } from '../../lib/utils';
+import { exportInformeMensual } from '../../lib/export-informe';
 
 function Badge({ label, className }: { label: string; className: string }) {
   return (
@@ -44,6 +44,7 @@ export function ReportsView() {
   const { tasks } = useTasks();
   const { tickets } = useTickets();
   const { apps } = useApps();
+  const { user } = useUser();
 
   const today = new Date().toISOString().split('T')[0];
   const firstOfMonth = today.slice(0, 8) + '01';
@@ -53,6 +54,7 @@ export function ReportsView() {
   const [filterRQ, setFilterRQ] = useState('');
   const [filterApp, setFilterApp] = useState('');
   const [search, setSearch] = useState('');
+  const [exporting, setExporting] = useState(false);
 
   const ticketOptions = [
     { value: '', label: 'Todos los tickets' },
@@ -100,35 +102,19 @@ export function ReportsView() {
       ? `${Math.floor(totalMins / 60)}h ${totalMins % 60}m`
       : '—';
 
-  const handleExport = () => {
-    const rows = filtered.map((t) => ({
-      Fecha: t.fecha,
-      'Nombre de tarea': t.nombre,
-      'RQ / Ticket': t.rqTicket || '',
-      Aplicación: t.aplicacion || '',
-      Estado: TASK_STATUS_LABELS[t.status],
-      Prioridad: TASK_PRIORITY_LABELS[t.priority],
-      'Hora inicio': t.horaInicio || '',
-      'Hora fin': t.horaFin || '',
-      'Tiempo invertido': t.tiempoInvertido || '',
-      'URL escenario': t.urlEscenario || '',
-      Observación: t.observacion || '',
-    }));
-
-    const ws = XLSX.utils.json_to_sheet(rows);
-
-    // Column widths
-    ws['!cols'] = [
-      { wch: 12 }, { wch: 40 }, { wch: 16 }, { wch: 22 },
-      { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 },
-      { wch: 16 }, { wch: 40 }, { wch: 40 },
-    ];
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Actividades');
-
-    const filename = `reporte_actividades_${fechaInicio}_${fechaFin}.xlsx`;
-    XLSX.writeFile(wb, filename);
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      await exportInformeMensual({
+        fechaInicio,
+        fechaFin,
+        tasks: filtered,
+        tickets,
+        userName: user?.nombre ?? '',
+      });
+    } finally {
+      setExporting(false);
+    }
   };
 
   const formatDate = (d: string) =>
@@ -151,7 +137,8 @@ export function ReportsView() {
           </p>
         </div>
         <Button 
-        onClick={handleExport} disabled={filtered.length === 0} 
+        onClick={handleExport} disabled={filtered.length === 0 || exporting} 
+        isLoading={exporting}
         className="gap-2">
           <Download className="h-4 w-4" />
           Exportar Excel
@@ -216,12 +203,12 @@ export function ReportsView() {
       </Card>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      {/* <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <StatCard label="Total tareas" value={filtered.length} />
         <StatCard label="Completadas" value={completadas} sub={filtered.length ? `${Math.round((completadas / filtered.length) * 100)}%` : undefined} />
         <StatCard label="Pendientes" value={`${pendientes}`} />
         <StatCard label="Tiempo total" value={totalTiempo} />
-      </div>
+      </div> */}
 
       {/* Search + table */}
       <Card className="border shadow-none">

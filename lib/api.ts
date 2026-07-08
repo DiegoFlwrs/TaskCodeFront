@@ -19,6 +19,7 @@ import { storage, tokenUtils } from './utils';
 class ApiClient {
   private baseURL = API_CONFIG.BASE_URL;
   private tokenCookieName = 'auth_token';
+  private readonly requestTimeoutMs = 30_000;
   
   // Helper para hacer peticiones HTTP
   async request<T>(
@@ -49,13 +50,18 @@ class ApiClient {
       headers.set('Authorization', `Bearer ${token}`);
     }
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.requestTimeoutMs);
+
     const config: RequestInit = {
       ...options,
       headers,
+      signal: controller.signal,
     };
 
     try {
       const response = await fetch(url, config);
+      clearTimeout(timeoutId);
       
       // Si el token expiró, limpiar storage y redirigir al login
       if (response.status === 401 && !authEndpoints.has(endpoint as never)) {
@@ -72,7 +78,8 @@ class ApiClient {
         const error: ApiError = {
           message: errorData.message || `Error ${response.status}`,
           status: response.status,
-          code: errorData.code
+          code: errorData.code,
+          errors: errorData.errors,
         };
         throw error;
       }
@@ -84,7 +91,11 @@ class ApiClient {
 
       return await response.json();
     } catch (error) {
-      console.warn('API Error:', error);
+      clearTimeout(timeoutId);
+
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw new Error('La solicitud tardó demasiado. Intenta de nuevo.');
+      }
       
       // Si es un error de red
       if (error instanceof TypeError) {

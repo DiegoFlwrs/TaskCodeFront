@@ -3,12 +3,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import {
-  X, Loader2, BarChart3, CheckCircle2, Clock,
-  Target, AlertCircle, Users, TrendingUp,
+  X, Loader2, BarChart3, Clock,
+  Target, AlertTriangle, Users, TrendingUp, Zap, Timer,
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { cn } from '../../lib/utils';
 import apiClient from '../../lib/api';
+import { CACHE_TTL, fetchCached, getCached } from '../../lib/api-cache';
 
 // ---- Types ----
 type MemberRole = 'LEADER' | 'DEVELOPER' | 'QA' | 'DESIGNER' | 'DEVOPS';
@@ -22,11 +23,9 @@ export interface StatsMember {
 interface TaskStats {
   total: number;
   pendiente: number;
-  enProgreso: number;
   completada: number;
-  cancelada: number;
-  consultar: number;
   tiempoTotalMinutos: number;
+  tiempoPromedioMinutos: number;
 }
 
 interface TicketStats {
@@ -34,6 +33,8 @@ interface TicketStats {
   activo: number;
   completado: number;
   cancelado: number;
+  vencido: number;
+  venceProximo: number;
   porPrioridad: { alta: number; media: number; baja: number };
 }
 
@@ -53,15 +54,20 @@ const ROLE_LABELS: Record<MemberRole, string> = {
 
 const C = {
   completada: '#10b981',
-  enProgreso: '#3b82f6',
   pendiente:  '#f59e0b',
-  consultar:  '#8b5cf6',
-  cancelada:  '#a1a1aa',
   alta:       '#ef4444',
   media:      '#f59e0b',
   baja:       '#a1a1aa',
   activo:     '#3b82f6',
+  vencido:    '#ef4444',
 } as const;
+
+function daysBetween(from: string, to: string): number {
+  const start = new Date(`${from}T00:00:00`);
+  const end = new Date(`${to}T00:00:00`);
+  const diff = Math.round((end.getTime() - start.getTime()) / 86_400_000);
+  return Math.max(diff + 1, 1);
+}
 
 function formatMinutes(min: number): string {
   if (!min || min <= 0) return '—';
@@ -194,21 +200,18 @@ function KpiCard({
 }
 
 function StackedBarChart({ data }: {
-  data: { nombre: string; completada: number; enProgreso: number; pendiente: number; cancelada: number; consultar: number }[];
+  data: { nombre: string; completada: number; pendiente: number }[];
 }) {
   const MAX_H = 110;
-  const maxTotal = Math.max(...data.map(d => d.completada + d.enProgreso + d.pendiente + d.cancelada + d.consultar), 1);
+  const maxTotal = Math.max(...data.map(d => d.completada + d.pendiente), 1);
   return (
     <div className="flex items-end gap-2" style={{ height: MAX_H + 44 }}>
       {data.map((d) => {
-        const total = d.completada + d.enProgreso + d.pendiente + d.cancelada + d.consultar;
+        const total = d.completada + d.pendiente;
         const barH = total === 0 ? 6 : Math.max((total / maxTotal) * MAX_H, 6);
         const segs = [
           { color: C.completada, v: d.completada },
-          { color: C.enProgreso, v: d.enProgreso },
           { color: C.pendiente,  v: d.pendiente },
-          { color: C.consultar,  v: d.consultar },
-          { color: C.cancelada,  v: d.cancelada },
         ].filter(s => s.v > 0);
         const initials = d.nombre.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
         return (
@@ -282,9 +285,11 @@ function CompareBar({ data }: { data: MemberStatsData[] }) {
               </div>
               <span className="text-xs font-semibold w-9 text-right">{rate}%</span>
             </div>
-            <div className="text-right w-20 shrink-0">
+            <div className="text-right w-24 shrink-0">
               <p className="text-xs font-medium">{m.tasks.completada}/{m.tasks.total} tareas</p>
-              <p className="text-[11px] text-muted-foreground">{formatMinutes(m.tasks.tiempoTotalMinutos)}</p>
+              <p className="text-[11px] text-muted-foreground">
+                {m.tasks.pendiente > 0 ? `${m.tasks.pendiente} pend.` : formatMinutes(m.tasks.tiempoTotalMinutos)}
+              </p>
             </div>
           </div>
         );
@@ -295,24 +300,30 @@ function CompareBar({ data }: { data: MemberStatsData[] }) {
 
 // ---- Aggregate helpers ----
 function aggregate(data: MemberStatsData[]) {
-  const tasks: TaskStats = { total: 0, pendiente: 0, enProgreso: 0, completada: 0, cancelada: 0, consultar: 0, tiempoTotalMinutos: 0 };
-  const tickets: TicketStats = { total: 0, activo: 0, completado: 0, cancelado: 0, porPrioridad: { alta: 0, media: 0, baja: 0 } };
+  const tasks: TaskStats = { total: 0, pendiente: 0, completada: 0, tiempoTotalMinutos: 0, tiempoPromedioMinutos: 0 };
+  const tickets: TicketStats = {
+    total: 0, activo: 0, completado: 0, cancelado: 0,
+    vencido: 0, venceProximo: 0,
+    porPrioridad: { alta: 0, media: 0, baja: 0 },
+  };
   for (const m of data) {
     tasks.total += m.tasks.total;
     tasks.pendiente += m.tasks.pendiente;
-    tasks.enProgreso += m.tasks.enProgreso;
     tasks.completada += m.tasks.completada;
-    tasks.cancelada += m.tasks.cancelada;
-    tasks.consultar += m.tasks.consultar;
     tasks.tiempoTotalMinutos += m.tasks.tiempoTotalMinutos;
     tickets.total += m.tickets.total;
     tickets.activo += m.tickets.activo;
     tickets.completado += m.tickets.completado;
     tickets.cancelado += m.tickets.cancelado;
+    tickets.vencido += m.tickets.vencido ?? 0;
+    tickets.venceProximo += m.tickets.venceProximo ?? 0;
     tickets.porPrioridad.alta += m.tickets.porPrioridad.alta;
     tickets.porPrioridad.media += m.tickets.porPrioridad.media;
     tickets.porPrioridad.baja += m.tickets.porPrioridad.baja;
   }
+  tasks.tiempoPromedioMinutos = tasks.completada > 0
+    ? Math.round(tasks.tiempoTotalMinutos / tasks.completada)
+    : 0;
   return { tasks, tickets };
 }
 
@@ -320,10 +331,7 @@ function taskSegments(t: TaskStats) {
   const total = t.total || 1;
   return [
     { value: t.completada, color: C.completada, label: 'Completada' },
-    { value: t.enProgreso, color: C.enProgreso, label: 'En progreso' },
     { value: t.pendiente,  color: C.pendiente,  label: 'Pendiente'  },
-    { value: t.consultar,  color: C.consultar,  label: 'Consultar'  },
-    { value: t.cancelada,  color: C.cancelada,  label: 'Cancelada'  },
   ].map(s => ({ ...s, pct: Math.round((s.value / total) * 100) }));
 }
 
@@ -332,7 +340,7 @@ function ticketSegments(k: TicketStats) {
   return [
     { value: k.completado,            color: C.completada, label: 'Completado' },
     { value: k.activo,                color: C.activo,     label: 'Activo'     },
-    { value: k.cancelado,             color: C.cancelada,  label: 'Cancelado'  },
+    { value: k.cancelado,             color: C.baja,       label: 'Cancelado'  },
   ].map(s => ({ ...s, pct: Math.round((s.value / total) * 100) }));
 }
 
@@ -345,64 +353,106 @@ function prioritySegments(k: TicketStats) {
   ].map(s => ({ ...s, pct: Math.round((s.value / total) * 100) }));
 }
 
+function normalizeStats(raw: MemberStatsData): MemberStatsData {
+  return {
+    ...raw,
+    tasks: {
+      total: raw.tasks?.total ?? 0,
+      pendiente: raw.tasks?.pendiente ?? 0,
+      completada: raw.tasks?.completada ?? 0,
+      tiempoTotalMinutos: raw.tasks?.tiempoTotalMinutos ?? 0,
+      tiempoPromedioMinutos: raw.tasks?.tiempoPromedioMinutos ?? 0,
+    },
+    tickets: {
+      total: raw.tickets?.total ?? 0,
+      activo: raw.tickets?.activo ?? 0,
+      completado: raw.tickets?.completado ?? 0,
+      cancelado: raw.tickets?.cancelado ?? 0,
+      vencido: raw.tickets?.vencido ?? 0,
+      venceProximo: raw.tickets?.venceProximo ?? 0,
+      porPrioridad: {
+        alta: raw.tickets?.porPrioridad?.alta ?? 0,
+        media: raw.tickets?.porPrioridad?.media ?? 0,
+        baja: raw.tickets?.porPrioridad?.baja ?? 0,
+      },
+    },
+  };
+}
+
 // ---- Dashboard views ----
 
-function AllMembersDashboard({ data }: { data: MemberStatsData[] }) {
+function AllMembersDashboard({ data, days }: { data: MemberStatsData[]; days: number }) {
   const { tasks, tickets } = aggregate(data);
   const completionRate = tasks.total === 0 ? 0 : Math.round((tasks.completada / tasks.total) * 100);
+  const throughput = days > 0 ? (tasks.completada / days).toFixed(1) : '0';
   const tSegs = taskSegments(tasks);
   const kSegs = ticketSegments(tickets);
 
   return (
     <div className="space-y-6">
-      {/* KPI strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {/* KPI strip — decision-focused */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <KpiCard
-          icon={<Target className="h-4 w-4 text-white" />}
-          label="Total tareas" value={tasks.total}
-          accentColor="bg-blue-600"
-        />
-        <KpiCard
-          icon={<CheckCircle2 className="h-4 w-4 text-white" />}
-          label="Completadas" value={tasks.completada}
-          rate={completionRate}
+          icon={<TrendingUp className="h-4 w-4 text-white" />}
+          label="Tasa cumplimiento"
+          value={`${completionRate}%`}
+          sub={`${tasks.completada}/${tasks.total} tareas`}
           accentColor="bg-emerald-600"
         />
         <KpiCard
-          icon={<Clock className="h-4 w-4 text-white" />}
-          label="Tiempo total" value={formatMinutes(tasks.tiempoTotalMinutos)}
+          icon={<Zap className="h-4 w-4 text-white" />}
+          label="Ritmo"
+          value={`${throughput}/día`}
+          sub="tareas completadas"
+          accentColor="bg-blue-600"
+        />
+        <KpiCard
+          icon={<AlertTriangle className="h-4 w-4 text-white" />}
+          label="Pendientes"
+          value={tasks.pendiente}
+          sub="requieren acción"
           accentColor="bg-amber-500"
         />
         <KpiCard
-          icon={<AlertCircle className="h-4 w-4 text-white" />}
-          label="Tickets activos" value={tickets.activo}
-          sub={`${tickets.total} total`}
+          icon={<Timer className="h-4 w-4 text-white" />}
+          label="Tiempo promedio"
+          value={formatMinutes(tasks.tiempoPromedioMinutos)}
+          sub="por tarea completada"
           accentColor="bg-violet-600"
+        />
+        <KpiCard
+          icon={<AlertTriangle className="h-4 w-4 text-white" />}
+          label="Tickets vencidos"
+          value={tickets.vencido}
+          sub={tickets.venceProximo > 0 ? `${tickets.venceProximo} vencen pronto` : 'sin urgencia'}
+          accentColor={tickets.vencido > 0 ? 'bg-red-600' : 'bg-zinc-500'}
+        />
+        <KpiCard
+          icon={<Target className="h-4 w-4 text-white" />}
+          label="Tickets activos"
+          value={tickets.activo}
+          sub={`${tickets.total} total`}
+          accentColor="bg-indigo-600"
         />
       </div>
 
       {/* Charts row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {/* Stacked bar per member */}
         <div className="rounded-xl border bg-card p-4">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-4">Tareas por miembro</p>
           {data.length > 0 ? (
             <StackedBarChart
               data={data.map(m => ({
-                nombre:    m.memberNombre,
+                nombre:     m.memberNombre,
                 completada: m.tasks.completada,
-                enProgreso: m.tasks.enProgreso,
                 pendiente:  m.tasks.pendiente,
-                cancelada:  m.tasks.cancelada,
-                consultar:  m.tasks.consultar,
               }))}
             />
           ) : (
             <div className="py-8 text-center text-sm text-muted-foreground">Sin datos</div>
           )}
-          {/* Legend */}
-          <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3">
-            {[['Completada', C.completada], ['En progreso', C.enProgreso], ['Pendiente', C.pendiente], ['Consultar', C.consultar], ['Cancelada', C.cancelada]].map(([l, c]) => (
+          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3">
+            {[['Completada', C.completada], ['Pendiente', C.pendiente]].map(([l, c]) => (
               <div key={l} className="flex items-center gap-1">
                 <div className="w-2 h-2 rounded-full" style={{ backgroundColor: c }} />
                 <span className="text-[10px] text-muted-foreground">{l}</span>
@@ -411,7 +461,6 @@ function AllMembersDashboard({ data }: { data: MemberStatsData[] }) {
           </div>
         </div>
 
-        {/* Overall task donut */}
         <div className="rounded-xl border bg-card p-4">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-4">Distribución global de tareas</p>
           <div className="flex items-center gap-5">
@@ -425,18 +474,17 @@ function AllMembersDashboard({ data }: { data: MemberStatsData[] }) {
         </div>
       </div>
 
-      {/* Comparison bars */}
+      {/* Workload + performance */}
       <div className="rounded-xl border bg-card p-4">
         <div className="flex items-center gap-2 mb-4">
-          <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Rendimiento por miembro</p>
+          <Users className="h-4 w-4 text-muted-foreground" />
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Carga y rendimiento por miembro</p>
         </div>
         {data.length > 0 ? <CompareBar data={data} /> : (
           <div className="py-6 text-center text-sm text-muted-foreground">Sin datos</div>
         )}
       </div>
 
-      {/* Tickets donut */}
       {tickets.total > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="rounded-xl border bg-card p-4">
@@ -459,41 +507,51 @@ function AllMembersDashboard({ data }: { data: MemberStatsData[] }) {
   );
 }
 
-function SingleMemberDashboard({ data }: { data: MemberStatsData }) {
+function SingleMemberDashboard({ data, days }: { data: MemberStatsData; days: number }) {
   const { tasks, tickets } = data;
   const completionRate = tasks.total === 0 ? 0 : Math.round((tasks.completada / tasks.total) * 100);
+  const throughput = days > 0 ? (tasks.completada / days).toFixed(1) : '0';
   const tSegs = taskSegments(tasks);
   const kSegs = ticketSegments(tickets);
 
   return (
     <div className="space-y-6">
-      {/* KPI strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <KpiCard
-          icon={<Target className="h-4 w-4 text-white" />}
-          label="Total tareas" value={tasks.total}
-          accentColor="bg-blue-600"
-        />
-        <KpiCard
-          icon={<CheckCircle2 className="h-4 w-4 text-white" />}
-          label="Completadas" value={tasks.completada}
-          rate={completionRate}
+          icon={<TrendingUp className="h-4 w-4 text-white" />}
+          label="Tasa cumplimiento"
+          value={`${completionRate}%`}
+          sub={`${tasks.completada}/${tasks.total} tareas`}
           accentColor="bg-emerald-600"
         />
         <KpiCard
-          icon={<Clock className="h-4 w-4 text-white" />}
-          label="Tiempo invertido" value={formatMinutes(tasks.tiempoTotalMinutos)}
+          icon={<Zap className="h-4 w-4 text-white" />}
+          label="Ritmo"
+          value={`${throughput}/día`}
+          sub="completadas"
+          accentColor="bg-blue-600"
+        />
+        <KpiCard
+          icon={<AlertTriangle className="h-4 w-4 text-white" />}
+          label="Pendientes"
+          value={tasks.pendiente}
           accentColor="bg-amber-500"
         />
         <KpiCard
-          icon={<AlertCircle className="h-4 w-4 text-white" />}
-          label="Tickets" value={tickets.total}
-          sub={`${tickets.completado} completados`}
+          icon={<Timer className="h-4 w-4 text-white" />}
+          label="Tiempo promedio"
+          value={formatMinutes(tasks.tiempoPromedioMinutos)}
+          sub="por tarea"
           accentColor="bg-violet-600"
+        />
+        <KpiCard
+          icon={<Clock className="h-4 w-4 text-white" />}
+          label="Tiempo total"
+          value={formatMinutes(tasks.tiempoTotalMinutos)}
+          accentColor="bg-zinc-500"
         />
       </div>
 
-      {/* Donuts row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="rounded-xl border bg-card p-4">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-4">Tareas por estado</p>
@@ -521,7 +579,6 @@ function SingleMemberDashboard({ data }: { data: MemberStatsData }) {
         </div>
       </div>
 
-      {/* Progress breakdown */}
       {tasks.total > 0 && (
         <div className="rounded-xl border bg-muted/30 p-4">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-4">Detalle de estados</p>
@@ -566,26 +623,44 @@ export function TeamStatsModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const fetchStats = useCallback(async () => {
+  const fetchStats = useCallback(async (force = false) => {
     if (!team) return;
+
+    const cacheKey = `api:stats:${team.id}:${dateRange.from}:${dateRange.to}`;
+
+    if (!force) {
+      const cached = getCached<MemberStatsData[]>(cacheKey);
+      if (cached) {
+        setStats(cached);
+        setLoading(false);
+        setError('');
+        return;
+      }
+    }
+
     setLoading(true);
     setError('');
     try {
       const params = new URLSearchParams({
         fechaInicio: dateRange.from,
         fechaFin: dateRange.to,
-        ...(selectedMemberId !== 'all' ? { memberId: selectedMemberId } : {}),
       });
-      const data = await apiClient.request<MemberStatsData | MemberStatsData[]>(
-        `/api/teams/${team.id}/stats?${params.toString()}`
+      const data = await fetchCached(
+        cacheKey,
+        () => apiClient.request<MemberStatsData | MemberStatsData[]>(
+          `/api/teams/${team.id}/stats?${params.toString()}`
+        ),
+        CACHE_TTL.stats,
+        { force },
       );
-      setStats(Array.isArray(data) ? data : [data]);
+      const list = (Array.isArray(data) ? data : [data]).map(normalizeStats);
+      setStats(list);
     } catch {
       setError('No se pudieron cargar las estadísticas');
     } finally {
       setLoading(false);
     }
-  }, [team, dateRange, selectedMemberId]);
+  }, [team, dateRange]);
 
   useEffect(() => {
     if (open) {
@@ -605,9 +680,16 @@ export function TeamStatsModal({
     setDateRange(presetRange(p));
   };
 
+  const displayedStats =
+    selectedMemberId === 'all'
+      ? stats
+      : stats.filter(s => s.memberId === selectedMemberId);
+
   const selectedMemberData =
     selectedMemberId === 'all' ? null
-      : stats.find(s => s.memberId === selectedMemberId) ?? null;
+      : displayedStats[0] ?? null;
+
+  const periodDays = daysBetween(dateRange.from, dateRange.to);
 
   return (
     <Dialog.Root open={open} onOpenChange={(v) => !v && onClose()}>
@@ -623,7 +705,7 @@ export function TeamStatsModal({
                 Estadísticas — {team?.nombre}
               </Dialog.Title>
               <Dialog.Description className="text-xs text-muted-foreground mt-0.5">
-                Rendimiento y avance del equipo por período
+                KPIs para decisiones de equipo — cumplimiento, carga y riesgos
               </Dialog.Description>
             </div>
             <Dialog.Close asChild>
@@ -679,7 +761,7 @@ export function TeamStatsModal({
                   onChange={e => { setPreset(null); setDateRange(r => ({ ...r, to: e.target.value })); }}
                   className="h-8 px-2 rounded-md border bg-background text-xs focus:outline-none focus:ring-2 focus:ring-ring"
                 />
-                <Button size="sm" variant="outline" className="h-8 px-3 text-xs" onClick={fetchStats}>
+                <Button size="sm" variant="outline" className="h-8 px-3 text-xs" onClick={() => fetchStats(true)}>
                   Aplicar
                 </Button>
               </div>
@@ -696,9 +778,9 @@ export function TeamStatsModal({
             ) : error ? (
               <div className="py-12 text-center text-destructive text-sm">{error}</div>
             ) : selectedMemberId === 'all' ? (
-              <AllMembersDashboard data={stats} />
+              <AllMembersDashboard data={displayedStats} days={periodDays} />
             ) : selectedMemberData ? (
-              <SingleMemberDashboard data={selectedMemberData} />
+              <SingleMemberDashboard data={selectedMemberData} days={periodDays} />
             ) : (
               <div className="py-12 text-center text-muted-foreground text-sm">
                 Sin datos para este miembro en el período seleccionado

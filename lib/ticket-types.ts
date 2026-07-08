@@ -3,19 +3,38 @@
 export type TicketPriority = 'alta' | 'media' | 'baja';
 export type TicketStatus = 'activo' | 'completado' | 'cancelado';
 
+export interface TicketAssignedMember {
+  id: string;
+  nombre: string;
+  email: string;
+}
+
+export interface TicketPendingExtension {
+  fechaSolicitada: string;
+  motivo: string;
+  solicitadoPor?: string;
+}
+
 export interface Ticket {
   id: string;
   teamId?: string;
   teamNombre?: string;
-  codigo: string;        // e.g. RQ-001, JIRA-123
+  codigo: string;
   nombre: string;
   descripcion: string;
-  asignadoPor: string;   // quien asignó el RQ
-  fechaInicio: string;   // YYYY-MM-DD
-  fechaFin: string;      // YYYY-MM-DD
+  asignadoPor: string;
+  fechaInicio: string;
+  fechaFin: string;
   priority: TicketPriority;
   status: TicketStatus;
   createdAt: string;
+  assignedMembers?: TicketAssignedMember[];
+  canEdit?: boolean;
+  canDelete?: boolean;
+  canExtendDirectly?: boolean;
+  canRequestExtension?: boolean;
+  canReviewExtension?: boolean;
+  pendingExtension?: TicketPendingExtension | null;
 }
 
 export interface TicketFormData {
@@ -29,6 +48,7 @@ export interface TicketFormData {
   priority: TicketPriority;
   status: TicketStatus;
   motivo: string;
+  assignedMemberIds?: string[];
 }
 
 export type AlarmLevel = 'vencido' | 'critico' | 'urgente' | 'proximo' | 'ok';

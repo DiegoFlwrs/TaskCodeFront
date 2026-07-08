@@ -20,23 +20,30 @@ const registerSchema = z.object({
   nombre: z
     .string()
     .min(2, 'El nombre debe tener al menos 2 caracteres')
-    .max(50, 'El nombre no puede exceder 50 caracteres'),
+    .max(100, 'El nombre no puede exceder 100 caracteres'),
   email: z
     .string()
     .min(1, 'El email es requerido')
+    .max(150, 'El email no puede exceder 150 caracteres')
     .refine(validateEmail, 'Email inválido'),
   password: z
     .string()
     .min(6, 'La contraseña debe tener al menos 6 caracteres')
+    .max(50, 'La contraseña no puede exceder 50 caracteres')
     .refine((password) => validatePassword(password).isValid, {
       message: 'La contraseña debe contener mayúsculas, minúsculas y números',
     }),
   confirmPassword: z.string(),
   equipoNombre: z.string().optional(),
   equipoDescripcion: z.string().optional(),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: 'Las contraseñas no coinciden',
-  path: ['confirmPassword'],
+}).superRefine((data, ctx) => {
+  if (data.password !== data.confirmPassword) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Las contraseñas no coinciden',
+      path: ['confirmPassword'],
+    });
+  }
 });
 
 type RegisterFormData = z.infer<typeof registerSchema>;
@@ -65,6 +72,24 @@ export function RegisterForm() {
   const onSubmit = async (data: RegisterFormData) => {
     try {
       setIsLoading(true);
+
+      if (userType === 'team-leader') {
+        const equipoNombre = data.equipoNombre?.trim() ?? '';
+        if (equipoNombre.length < 2) {
+          form.setError('equipoNombre', {
+            message: 'El nombre del equipo es requerido (mín. 2 caracteres)',
+          });
+          return;
+        }
+        if (equipoNombre.length > 100) {
+          form.setError('equipoNombre', { message: 'Máximo 100 caracteres' });
+          return;
+        }
+        if ((data.equipoDescripcion?.length ?? 0) > 500) {
+          form.setError('equipoDescripcion', { message: 'Máximo 500 caracteres' });
+          return;
+        }
+      }
       
       // Enviar código de verificación en lugar de registrar directamente
       await sendVerificationCode({
@@ -110,7 +135,7 @@ export function RegisterForm() {
             Crear Cuenta
           </CardTitle>
           <CardDescription>
-            Únete a TaskCodeBack y gestiona tus proyectos
+            Únete a TaskCode TAD y gestiona tus proyectos
           </CardDescription>
         </CardHeader>
 
@@ -124,9 +149,9 @@ export function RegisterForm() {
                   type="button"
                   variant="outline"
                   className={`h-auto p-4 flex flex-col items-center space-y-2 transition-all duration-200 ${
-                    userType === 'individual' 
-                      ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700 hover:text-white shadow-lg' 
-                      : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
+                    userType === 'individual'
+                      ? 'bg-primary text-primary-foreground border-primary hover:bg-primary/90 hover:text-primary-foreground shadow-md'
+                      : 'bg-muted text-muted-foreground border-border hover:bg-muted/80'
                   }`}
                   onClick={() => setUserType('individual')}
                   disabled={isLoading}
@@ -135,7 +160,7 @@ export function RegisterForm() {
                   <div className="text-center">
                     <div className="font-medium">Individual</div>
                     <div className={`text-xs ${
-                      userType === 'individual' ? 'text-blue-100' : 'text-gray-500'
+                      userType === 'individual' ? 'text-primary-foreground/80' : 'text-muted-foreground'
                     }`}>
                       Trabajo solo
                     </div>
@@ -146,9 +171,9 @@ export function RegisterForm() {
                   type="button"
                   variant="outline"
                   className={`h-auto p-4 flex flex-col items-center space-y-2 transition-all duration-200 ${
-                    userType === 'team-leader' 
-                      ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700 hover:text-white shadow-lg' 
-                      : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
+                    userType === 'team-leader'
+                      ? 'bg-primary text-primary-foreground border-primary hover:bg-primary/90 hover:text-primary-foreground shadow-md'
+                      : 'bg-muted text-muted-foreground border-border hover:bg-muted/80'
                   }`}
                   onClick={() => setUserType('team-leader')}
                   disabled={isLoading}
@@ -157,7 +182,7 @@ export function RegisterForm() {
                   <div className="text-center">
                     <div className="font-medium">Team Leader</div>
                     <div className={`text-xs ${
-                      userType === 'team-leader' ? 'text-blue-100' : 'text-gray-500'
+                      userType === 'team-leader' ? 'text-primary-foreground/80' : 'text-muted-foreground'
                     }`}>
                       Lidero un equipo
                     </div>
@@ -207,7 +232,7 @@ export function RegisterForm() {
                   <div className="flex space-x-2">
                     <div
                       className={`h-1 w-full rounded ${
-                        passwordValidation.isValid ? 'bg-green-500' : 'bg-red-200'
+                        passwordValidation.isValid ? 'bg-primary' : 'bg-red-200'
                       }`}
                     />
                   </div>

@@ -16,10 +16,10 @@ import { useApps } from '../../hooks/useApps';
 import { App, AppFormData, APP_COLORS } from '../../lib/app-types';
 
 const schema = z.object({
-  nombre: z.string().min(1, 'Requerido'),
-  descripcion: z.string(),
-  url: z.string(),
-  color: z.string(),
+  nombre: z.string().min(1, 'Requerido').max(150, 'Máximo 150 caracteres'),
+  descripcion: z.string().max(2000, 'Máximo 2000 caracteres'),
+  url: z.string().max(500, 'Máximo 500 caracteres'),
+  color: z.string().max(30, 'Máximo 30 caracteres'),
 });
 
 type FormData = z.infer<typeof schema>;

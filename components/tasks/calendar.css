@@ -23,6 +23,22 @@
   box-shadow: none !important;
 }
 
+/* Prev/next: texto en lugar de icon font (evita cuadrados) */
+.fc .fc-prev-button .fc-icon,
+.fc .fc-next-button .fc-icon {
+  display: none;
+}
+
+.fc .fc-prev-button,
+.fc .fc-next-button {
+  min-width: 2.25rem;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
 .fc .fc-toolbar-title {
   font-size: 1rem;
   font-weight: 600;
@@ -76,12 +92,12 @@
 }
 
 .event-all-done {
-  background-color: #2563eb !important; /* azul — igual que ahora */
-  border-color: #2563eb !important;
+  background-color: #059669 !important; /* emerald-600 — igual que badge Completada */
+  border-color: #059669 !important;
 }
 
 .event-pending {
-  background-color: #dc2626 !important; /* rojo */
-  border-color: #dc2626 !important;
+  background-color: #f59e0b !important; /* amber-500 — igual que badge Pendiente */
+  border-color: #f59e0b !important;
   color: #fff !important;
 }

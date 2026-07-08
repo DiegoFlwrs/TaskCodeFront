@@ -3,15 +3,31 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Task, TaskFormData } from '../lib/task-types';
 import apiClient from '../lib/api';
+import { CACHE_TTL, fetchCached, getCached, invalidateCache } from '../lib/api-cache';
+
+const CACHE_KEY = 'api:tasks:all';
 
 export function useTasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchAll = useCallback(async () => {
+  const fetchAll = useCallback(async (force = false) => {
     try {
+      if (!force) {
+        const cached = getCached<Task[]>(CACHE_KEY);
+        if (cached) {
+          setTasks(cached);
+          setLoading(false);
+          return;
+        }
+      }
       setLoading(true);
-      const data = await apiClient.request<Task[]>('/api/tasks');
+      const data = await fetchCached(
+        CACHE_KEY,
+        () => apiClient.request<Task[]>('/api/tasks'),
+        CACHE_TTL.lists,
+        { force },
+      );
       setTasks(data);
     } catch {
       // keep empty on error
@@ -21,6 +37,8 @@ export function useTasks() {
   }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  const invalidate = () => invalidateCache('api:tasks');
 
   const getTasksForDate = useCallback(
     (date: string) => tasks.filter((t) => t.fecha === date),
@@ -37,6 +55,8 @@ export function useTasks() {
       method: 'POST',
       body: JSON.stringify({ ...data, fecha: date }),
     });
+    invalidate();
+    invalidateCache('api:stats');
     setTasks((prev) => [...prev, task]);
     return task;
   }, []);
@@ -46,11 +66,15 @@ export function useTasks() {
       method: 'PUT',
       body: JSON.stringify(data),
     });
+    invalidate();
+    invalidateCache('api:stats');
     setTasks((prev) => prev.map((t) => (t.id === id ? updated : t)));
   }, []);
 
   const deleteTask = useCallback(async (id: string): Promise<void> => {
     await apiClient.request<void>(`/api/tasks/${id}`, { method: 'DELETE' });
+    invalidate();
+    invalidateCache('api:stats');
     setTasks((prev) => prev.filter((t) => t.id !== id));
   }, []);
 

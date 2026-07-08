@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { LoginForm } from '../../../components/auth/LoginForm';
 import { useAuth } from '../../../hooks/useAuth';
 import { LoadingSpinner } from '../../../components/ui/loading';
+import { AuthBrandHeader } from '../../../components/brand/AuthBrandHeader';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -32,16 +33,9 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[hsl(var(--tad-green)/0.08)] via-background to-[hsl(var(--tad-black)/0.04)] py-12 px-4 sm:px-6 lg:px-8">
       <div className="w-full">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900">
-            TaskCodeBack
-          </h1>
-          <p className="mt-2 text-lg text-gray-600">
-            Gestión de actividades para desarrolladores
-          </p>
-        </div>
+        <AuthBrandHeader subtitle="Gestión de actividades para desarrolladores" />
         <LoginForm />
       </div>
     </div>

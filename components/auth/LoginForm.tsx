@@ -13,6 +13,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { useAuth } from '../../hooks/useAuth';
 import { useToastManager } from '../ui/toast-manager';
 import { validateEmail } from '../../lib/utils';
+import { Eye, EyeOff } from 'lucide-react';
 
 // Schema de validación para el formulario de login
 const loginSchema = z.object({
@@ -30,6 +31,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const { login } = useAuth();
   const { toast } = useToastManager();
   const router = useRouter();
@@ -75,7 +77,7 @@ export function LoginForm() {
             Iniciar Sesión
           </CardTitle>
           <CardDescription>
-            Ingresa tus credenciales para acceder a TaskCodeBack
+            Ingresa tus credenciales para acceder a TaskCode TAD
           </CardDescription>
         </CardHeader>
 
@@ -95,14 +97,30 @@ export function LoginForm() {
 
             <div className="space-y-2">
               <Label htmlFor="password">Contraseña</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Tu contraseña"
-                {...form.register('password')}
-                error={form.formState.errors.password?.message}
-                disabled={isLoading}
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Tu contraseña"
+                  className="pr-10"
+                  {...form.register('password')}
+                  error={form.formState.errors.password?.message}
+                  disabled={isLoading}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                  disabled={isLoading}
+                  aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
             </div>
           </CardContent>
 

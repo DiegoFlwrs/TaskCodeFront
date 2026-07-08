@@ -9,6 +9,7 @@ import { useToastManager } from '../../../../components/ui/toast-manager';
 import { EmailVerificationStep } from '../../../../components/auth/EmailVerificationStep';
 import { CodeVerificationStep } from '../../../../components/auth/CodeVerificationStep';
 import { LoadingOverlay } from '../../../../components/ui/loading';
+import { AuthBrandHeader } from '../../../../components/brand/AuthBrandHeader';
 
 export default function RegisterWithVerificationPage() {
   const router = useRouter();
@@ -81,7 +82,7 @@ export default function RegisterWithVerificationPage() {
       
       toast.success(
         'Cuenta creada',
-        '¡Tu cuenta ha sido creada exitosamente! Bienvenido a TaskCodeBack.'
+        '¡Tu cuenta ha sido creada exitosamente! Bienvenido a TaskCode TAD.'
       );
       
       // Redirigir al dashboard
@@ -139,20 +140,12 @@ export default function RegisterWithVerificationPage() {
 
   return (
     <>
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[hsl(var(--tad-green)/0.08)] via-background to-[hsl(var(--tad-black)/0.04)] py-12 px-4 sm:px-6 lg:px-8">
         <div className="w-full">
-          {/* Header */}
-          <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold text-gray-900">
-              TaskCodeBack
-            </h1>
-            <p className="text-lg text-gray-600 mb-2">
-              Verificación de Email
-            </p>
-            <p className="text-sm text-gray-500">
-              ✨ Paso 2: Ingresa el código enviado a tu email
-            </p>
-          </div>
+          <AuthBrandHeader
+            subtitle="Verificación de Email"
+            hint="✨ Paso 2: Ingresa el código enviado a tu email"
+          />
 
           {/* Indicador de progreso */}
           <div className="max-w-md mx-auto mb-8">
@@ -169,7 +162,7 @@ export default function RegisterWithVerificationPage() {
               <div className="h-1 w-16 rounded bg-green-500" />
               
               <div className="flex items-center">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium bg-blue-600 text-white">
+                <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium bg-primary text-primary-foreground">
                   2
                 </div>
                 <span className="ml-2 text-sm font-medium text-gray-700">
@@ -197,7 +190,7 @@ export default function RegisterWithVerificationPage() {
           <div className="mt-8 text-center">
             <p className="text-sm text-gray-600">
               ¿Ya tienes cuenta?{' '}
-              <Link href="/login" className="text-blue-600 hover:text-blue-500 font-medium">
+              <Link href="/login" className="text-primary hover:text-primary/80 font-medium">
                 Inicia sesión aquí
               </Link>
             </p>

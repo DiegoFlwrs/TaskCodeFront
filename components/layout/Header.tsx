@@ -6,6 +6,7 @@ import { useAuth, useUser } from '../../hooks/useAuth';
 import { useToast } from '../../hooks/useToast';
 import { LogOut, User, Users } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { TadLogo } from '../brand/TadLogo';
 
 export function Header() {
   const { logout } = useAuth();
@@ -40,21 +41,19 @@ export function Header() {
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
         {/* Logo y título */}
         <div className="flex items-center space-x-4">
-          <h1 className="text-xl font-bold text-primary">
-            TaskCodeBack
-          </h1>
+          <TadLogo variant="default" />
           
           {/* Indicador de tipo de usuario */}
           <div className="flex items-center space-x-2 px-3 py-1 rounded-full bg-muted">
             {isTeamLeader ? (
               <>
-                <Users className="h-4 w-4 text-blue-600" />
-                <span className="text-sm font-medium text-blue-600">Team Leader</span>
+                <Users className="h-4 w-4 text-primary" />
+                <span className="text-sm font-medium text-primary">Team Leader</span>
               </>
             ) : (
               <>
-                <User className="h-4 w-4 text-green-600" />
-                <span className="text-sm font-medium text-green-600">Individual</span>
+                <User className="h-4 w-4 text-primary" />
+                <span className="text-sm font-medium text-primary">Individual</span>
               </>
             )}
           </div>
