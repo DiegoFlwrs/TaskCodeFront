@@ -24,7 +24,7 @@ import { Label } from "../ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { cn, formatApiError } from "../../lib/utils";
 import { useToastManager } from "../ui/toast-manager";
-import { useTickets } from "../../hooks/useTickets";
+import { useTickets, usePaginatedTickets } from "../../hooks/useTickets";
 import { useUser } from "../../hooks/useAuth";
 import apiClient from "../../lib/api";
 import { CACHE_TTL, fetchCached, getCached } from "../../lib/api-cache";
@@ -46,6 +46,8 @@ import { ReviewExtensionModal } from "./modals/ReviewExtensionModal";
 import { AssignedMembersAvatars } from "./AssignedMembersAvatars";
 import { TicketStatusBadge } from "./TicketStatusBadge";
 import { TicketUrgentAlert } from "./TicketUrgentAlert";
+import { DataTablePagination } from "../ui/data-table-pagination";
+import { DEFAULT_PAGE_SIZE } from "../../lib/pagination";
 
 // ---- Schema ----
 function createTicketSchema(existingTickets: Ticket[], editingId?: string) {
@@ -443,8 +445,16 @@ type FilterStatus = "todos" | TicketStatus;
 
 // ---- Main view ----
 export function TicketsView() {
-  const { tickets, addTicket, updateTicket, deleteTicket, updateTicketStatus, requestExtension, reviewExtension } =
-    useTickets();
+  const {
+    tickets,
+    addTicket,
+    updateTicket,
+    deleteTicket,
+    updateTicketStatus,
+    requestExtension,
+    reviewExtension,
+    refetchOptions,
+  } = useTickets();
   const { toast } = useToastManager();
   const { isTeamLeader } = useUser();
   const [teams, setTeams] = useState<TeamOption[]>([]);
@@ -452,8 +462,32 @@ export function TicketsView() {
   const [editingTicket, setEditingTicket] = useState<Ticket | null>(null);
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("todos");
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(0);
+  const [size, setSize] = useState(DEFAULT_PAGE_SIZE);
   const [completeConfirmTicket, setCompleteConfirmTicket] =
     useState<Ticket | null>(null);
+
+  const { data: pagedTickets, loading, refetch: refetchPaged } = usePaginatedTickets({
+    status: filterStatus,
+    search: debouncedSearch,
+    page,
+    size,
+  });
+
+  const refreshTable = () => {
+    refetchOptions(true);
+    refetchPaged();
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [filterStatus, debouncedSearch, size]);
 
   const [extendTicket, setExtendTicket] = useState<Ticket | null>(null);
   const [reviewExtensionTicket, setReviewExtensionTicket] = useState<Ticket | null>(null);
@@ -485,14 +519,7 @@ export function TicketsView() {
     setAlertDismissed(false);
   }, [alertCount]);
 
-  const filtered = tickets.filter((t) => {
-    const matchStatus = filterStatus === "todos" || t.status === filterStatus;
-    const matchSearch =
-      !search ||
-      t.nombre.toLowerCase().includes(search.toLowerCase()) ||
-      t.codigo.toLowerCase().includes(search.toLowerCase());
-    return matchStatus && matchSearch;
-  });
+  const filtered = pagedTickets.content;
 
   const handleSave = async (data: TicketFormData) => {
     try {
@@ -503,6 +530,7 @@ export function TicketsView() {
         await addTicket(data);
         toast.success("Ticket creado", data.codigo);
       }
+      refreshTable();
     } catch (err) {
       toast.error("Error", formatApiError(err));
       throw err;
@@ -513,6 +541,7 @@ export function TicketsView() {
     try {
       await deleteTicket(id);
       toast.success("Ticket eliminado", codigo);
+      refreshTable();
     } catch {
       toast.error("Error", "No se pudo eliminar el ticket");
     }
@@ -522,6 +551,7 @@ export function TicketsView() {
     try {
       await updateTicketStatus(ticket.id, { ...ticket, status: "completado" });
       toast.success("Ticket completado", ticket.codigo);
+      refreshTable();
     } catch {
       toast.error("Error", "No se pudo completar el ticket");
     }
@@ -547,6 +577,7 @@ export function TicketsView() {
         });
         toast.success("Fecha extendida", `${ticket.codigo} → ${fechaFin}`);
       }
+      refreshTable();
     } catch {
       toast.error("Error", "No se pudo procesar la extensión");
       throw new Error("extension failed");
@@ -560,6 +591,7 @@ export function TicketsView() {
         approved ? "Extensión aprobada" : "Extensión rechazada",
         ticket.codigo,
       );
+      refreshTable();
     } catch {
       toast.error("Error", "No se pudo procesar la solicitud");
       throw new Error("review failed");
@@ -632,7 +664,10 @@ export function TicketsView() {
           {filterButtons.map((fb) => (
             <button
               key={fb.value}
-              onClick={() => setFilterStatus(fb.value)}
+              onClick={() => {
+                setFilterStatus(fb.value);
+                setPage(0);
+              }}
               className={cn(
                 "px-3 py-1 rounded-md text-sm transition-colors",
                 filterStatus === fb.value
@@ -656,16 +691,22 @@ export function TicketsView() {
       </div>
 
       {/* Tickets table */}
-      {filtered.length === 0 ? (
+      {loading ? (
+        <Card className="border shadow-none">
+          <CardContent className="py-14 text-center text-muted-foreground">
+            <p className="text-sm">Cargando tickets...</p>
+          </CardContent>
+        </Card>
+      ) : pagedTickets.totalElements === 0 ? (
         <Card className="border shadow-none">
           <CardContent className="py-14 text-center text-muted-foreground">
             <TicketIcon className="h-10 w-10 mx-auto mb-3 opacity-30" />
             <p className="text-sm font-medium">
-              {tickets.length === 0
+              {tickets.length === 0 && filterStatus === "todos" && !debouncedSearch
                 ? "Sin tickets registrados"
                 : "Sin resultados"}
             </p>
-            {tickets.length === 0 && (
+            {tickets.length === 0 && filterStatus === "todos" && !debouncedSearch && (
               <Button
                 variant="outline"
                 size="sm"
@@ -873,6 +914,14 @@ export function TicketsView() {
               })()}
             </table>
           </div>
+          <DataTablePagination
+            page={pagedTickets.page}
+            size={pagedTickets.size}
+            totalElements={pagedTickets.totalElements}
+            totalPages={pagedTickets.totalPages}
+            onPageChange={setPage}
+            onSizeChange={setSize}
+          />
         </Card>
       )}
 

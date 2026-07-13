@@ -91,7 +91,7 @@ function AppModal({
 }
 
 export function AppsView() {
-  const { apps, addApp, updateApp, deleteApp } = useApps();
+  const { apps, loading, addApp, updateApp, deleteApp, refetchOptions } = useApps();
   const { toast } = useToastManager();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingApp, setEditingApp] = useState<App | null>(null);
@@ -101,15 +101,16 @@ export function AppsView() {
     !search || a.nombre.toLowerCase().includes(search.toLowerCase())
   );
 
-  const handleSave = async (data: AppFormData) => {
+  const handleSave = async (formData: AppFormData) => {
     try {
       if (editingApp) {
-        await updateApp(editingApp.id, data);
-        toast.success('Aplicación actualizada', data.nombre);
+        await updateApp(editingApp.id, formData);
+        toast.success('Aplicación actualizada', formData.nombre);
       } else {
-        await addApp(data);
-        toast.success('Aplicación registrada', data.nombre);
+        await addApp(formData);
+        toast.success('Aplicación registrada', formData.nombre);
       }
+      refetchOptions(true);
     } catch {
       toast.error('Error', 'No se pudo guardar la aplicación');
     }
@@ -119,6 +120,7 @@ export function AppsView() {
     try {
       await deleteApp(id);
       toast.success('Eliminada', nombre);
+      refetchOptions(true);
     } catch {
       toast.error('Error', 'No se pudo eliminar la aplicación');
     }
@@ -136,7 +138,6 @@ export function AppsView() {
         </Button>
       </div>
 
-      {/* Search */}
       {apps.length > 0 && (
         <div className="relative max-w-xs">
           <input
@@ -149,12 +150,19 @@ export function AppsView() {
         </div>
       )}
 
-      {/* Grid */}
-      {filtered.length === 0 ? (
+      {loading ? (
+        <Card className="border shadow-none">
+          <CardContent className="py-14 text-center text-muted-foreground">
+            <p className="text-sm">Cargando aplicaciones...</p>
+          </CardContent>
+        </Card>
+      ) : filtered.length === 0 ? (
         <Card className="border shadow-none">
           <CardContent className="py-14 text-center text-muted-foreground">
             <AppWindow className="h-10 w-10 mx-auto mb-3 opacity-30" />
-            <p className="text-sm font-medium">{apps.length === 0 ? 'Sin aplicaciones registradas' : 'Sin resultados'}</p>
+            <p className="text-sm font-medium">
+              {apps.length === 0 ? 'Sin aplicaciones registradas' : 'Sin resultados'}
+            </p>
             {apps.length === 0 && (
               <Button variant="outline" size="sm" className="mt-4 gap-2" onClick={() => setModalOpen(true)}>
                 <Plus className="h-4 w-4" /> Registrar primera aplicación

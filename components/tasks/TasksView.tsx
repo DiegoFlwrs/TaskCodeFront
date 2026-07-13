@@ -6,45 +6,51 @@ import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import type { DateClickArg } from "@fullcalendar/interaction";
-import { Plus, ArrowLeft, X, CalendarDays } from "lucide-react";
+import { Plus, ArrowLeft, CalendarDays } from "lucide-react";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { TaskTable } from "./TaskTable";
 import { TaskFormModal } from "./TaskFormModal";
-import { useTasks } from "../../hooks/useTasks";
-import {
-  Task,
-  TaskFormData,
-  TASK_STATUS_COLORS,
-  TASK_STATUS_LABELS,
-} from "../../lib/task-types";
+import { usePaginatedTasks, useTaskDates, useTaskMutations } from "../../hooks/useTasks";
+import { Task, TaskFormData } from "../../lib/task-types";
 import { useToastManager } from "../ui/toast-manager";
+import { DEFAULT_PAGE_SIZE } from "../../lib/pagination";
 import "./calendar.css";
 
 export function TasksView() {
-  const {
-    getTasksForDate,
-    getDatesWithTasks,
-    addTask,
-    updateTask,
-    deleteTask,
-  } = useTasks();
   const { toast } = useToastManager();
+  const { summaries, refetchDates } = useTaskDates();
 
   const searchParams = useSearchParams();
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
+  const [size, setSize] = useState(DEFAULT_PAGE_SIZE);
 
-  
   useEffect(() => {
     const date = searchParams.get("date");
     if (date) setSelectedDate(date);
   }, [searchParams]);
+
   const [formOpen, setFormOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const calendarRef = useRef<InstanceType<typeof FullCalendar>>(null);
 
-  const datesWithTasks = getDatesWithTasks();
-  const tasksForDay = selectedDate ? getTasksForDate(selectedDate) : [];
+  const { data: tasksPage, loading, refetch: refetchTasks } = usePaginatedTasks({
+    fecha: selectedDate ?? undefined,
+    page,
+    size,
+  });
+
+  const refreshAll = useCallback(() => {
+    refetchDates();
+    refetchTasks();
+  }, [refetchDates, refetchTasks]);
+
+  const { addTask, updateTask, deleteTask } = useTaskMutations(refreshAll);
+
+  useEffect(() => {
+    setPage(0);
+  }, [selectedDate, size]);
 
   const handleDateClick = useCallback((arg: DateClickArg) => {
     setSelectedDate(arg.dateStr);
@@ -76,14 +82,11 @@ export function TasksView() {
         toast.success("Tarea actualizada", "Los cambios fueron guardados");
       } else if (selectedDate) {
         await addTask(selectedDate, data);
-        toast.success(
-          "Tarea agregada",
-          "La tarea fue registrada correctamente",
-        );
+        toast.success("Tarea agregada", "La tarea fue registrada correctamente");
       }
-    } catch (err) {
+    } catch {
       toast.error("Error", "No se pudo guardar la tarea");
-      throw err;
+      throw new Error("save failed");
     }
   };
 
@@ -108,10 +111,7 @@ export function TasksView() {
         horaFin,
         tiempoInvertido,
       });
-      toast.success(
-        "Tarea finalizada",
-        `Marcada como completada a las ${horaFin}`,
-      );
+      toast.success("Tarea finalizada", `Marcada como completada a las ${horaFin}`);
     } catch {
       toast.error("Error", "No se pudo finalizar la tarea");
     }
@@ -139,26 +139,18 @@ export function TasksView() {
       })
     : "";
 
-  // Build calendar events from tasks
-  const calendarEvents = datesWithTasks.map((date) => {
-    const tasksForDate = getTasksForDate(date);
-    const count = tasksForDate.length;
-    const allCompleted = tasksForDate.every((t) => t.status === "completada");
-
-    return {
-      id: date,
-      title: `${count} tarea${count !== 1 ? "s" : ""}`,
-      date,
-      classNames: [
-        "task-dot-event",
-        allCompleted ? "event-all-done" : "event-pending",
-      ],
-    };
-  });
+  const calendarEvents = summaries.map((summary) => ({
+    id: summary.fecha,
+    title: `${summary.count} tarea${summary.count !== 1 ? "s" : ""}`,
+    date: summary.fecha,
+    classNames: [
+      "task-dot-event",
+      summary.allCompleted ? "event-all-done" : "event-pending",
+    ],
+  }));
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-semibold">Mis Tareas</h2>
@@ -170,21 +162,16 @@ export function TasksView() {
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-1.5">
               <span className="w-3 h-3 rounded-sm bg-amber-500" />
-              <span className="text-xs text-muted-foreground">
-                Tiene tareas pendientes
-              </span>
+              <span className="text-xs text-muted-foreground">Tiene tareas pendientes</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="w-3 h-3 rounded-sm bg-emerald-600" />
-              <span className="text-xs text-muted-foreground">
-                Todas las tareas completadas
-              </span>
+              <span className="text-xs text-muted-foreground">Todas las tareas completadas</span>
             </div>
           </div>
         )}
       </div>
 
-      {/* Calendar */}
       {!selectedDate && (
         <Card className="border shadow-none">
           <CardContent className="p-4">
@@ -223,7 +210,6 @@ export function TasksView() {
         </Card>
       )}
 
-      {/* Day view */}
       {selectedDate && (
         <Card className="border shadow-none">
           <CardHeader className="pb-3 flex-row items-center justify-between space-y-0">
@@ -236,13 +222,11 @@ export function TasksView() {
                 <ArrowLeft className="h-4 w-4" />
               </button>
               <div>
-                <CardTitle className="text-base capitalize">
-                  {formattedSelectedDate}
-                </CardTitle>
+                <CardTitle className="text-base capitalize">{formattedSelectedDate}</CardTitle>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {tasksForDay.length} tarea
-                  {tasksForDay.length !== 1 ? "s" : ""} registrada
-                  {tasksForDay.length !== 1 ? "s" : ""}
+                  {tasksPage.totalElements} tarea
+                  {tasksPage.totalElements !== 1 ? "s" : ""} registrada
+                  {tasksPage.totalElements !== 1 ? "s" : ""}
                 </p>
               </div>
             </div>
@@ -251,29 +235,32 @@ export function TasksView() {
               Nueva tarea
             </Button>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-0">
             <TaskTable
-              tasks={tasksForDay}
+              tasks={tasksPage.content}
+              loading={loading}
               onEdit={handleEditTask}
               onDelete={handleDeleteTask}
               onFinish={handleFinishTask}
               onConsult={handleConsultTask}
+              page={tasksPage.page}
+              size={tasksPage.size}
+              totalElements={tasksPage.totalElements}
+              totalPages={tasksPage.totalPages}
+              onPageChange={setPage}
+              onSizeChange={setSize}
             />
           </CardContent>
         </Card>
       )}
 
-      {/* Empty state when no date selected */}
-      {!selectedDate && datesWithTasks.length === 0 && (
+      {!selectedDate && summaries.length === 0 && (
         <div className="text-center py-6 text-muted-foreground">
           <CalendarDays className="h-10 w-10 mx-auto mb-3 opacity-30" />
-          <p className="text-sm font-medium">
-            Haz clic en cualquier día para comenzar
-          </p>
+          <p className="text-sm font-medium">Haz clic en cualquier día para comenzar</p>
         </div>
       )}
 
-      {/* Task form modal */}
       {selectedDate && (
         <TaskFormModal
           open={formOpen}

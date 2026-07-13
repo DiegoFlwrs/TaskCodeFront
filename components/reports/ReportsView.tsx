@@ -1,13 +1,14 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, Download, FileSpreadsheet, Calendar, Filter } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Combobox } from '../ui/combobox';
-import { useTasks } from '../../hooks/useTasks';
+import { DataTablePagination } from '../ui/data-table-pagination';
+import { usePaginatedTasks, fetchAllTasksForExport } from '../../hooks/useTasks';
 import { useTickets } from '../../hooks/useTickets';
 import { useApps } from '../../hooks/useApps';
 import { useUser } from '../../hooks/useAuth';
@@ -19,6 +20,7 @@ import {
 } from '../../lib/task-types';
 import { cn } from '../../lib/utils';
 import { exportInformeMensual } from '../../lib/export-informe';
+import { DEFAULT_PAGE_SIZE } from '../../lib/pagination';
 
 function Badge({ label, className }: { label: string; className: string }) {
   return (
@@ -28,20 +30,7 @@ function Badge({ label, className }: { label: string; className: string }) {
   );
 }
 
-function StatCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
-  return (
-    <Card className="border shadow-none">
-      <CardContent className="p-4">
-        <p className="text-xs text-muted-foreground">{label}</p>
-        <p className="text-2xl font-bold mt-1">{value}</p>
-        {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
-      </CardContent>
-    </Card>
-  );
-}
-
 export function ReportsView() {
-  const { tasks } = useTasks();
   const { tickets } = useTickets();
   const { apps } = useApps();
   const { user } = useUser();
@@ -54,7 +43,29 @@ export function ReportsView() {
   const [filterRQ, setFilterRQ] = useState('');
   const [filterApp, setFilterApp] = useState('');
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [page, setPage] = useState(0);
+  const [size, setSize] = useState(DEFAULT_PAGE_SIZE);
   const [exporting, setExporting] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [fechaInicio, fechaFin, filterRQ, filterApp, debouncedSearch, size]);
+
+  const { data, loading } = usePaginatedTasks({
+    fechaInicio,
+    fechaFin,
+    rqTicket: filterRQ || undefined,
+    aplicacion: filterApp || undefined,
+    search: debouncedSearch || undefined,
+    page,
+    size,
+  });
 
   const ticketOptions = [
     { value: '', label: 'Todos los tickets' },
@@ -66,49 +77,20 @@ export function ReportsView() {
     ...apps.map((a) => ({ value: a.nombre, label: a.nombre })),
   ];
 
-  const filtered = useMemo(() => {
-    return tasks.filter((t) => {
-      if (fechaInicio && t.fecha < fechaInicio) return false;
-      if (fechaFin && t.fecha > fechaFin) return false;
-      if (filterRQ && t.rqTicket !== filterRQ) return false;
-      if (filterApp && t.aplicacion !== filterApp) return false;
-      if (search) {
-        const q = search.toLowerCase();
-        if (
-          !t.nombre.toLowerCase().includes(q) &&
-          !t.rqTicket.toLowerCase().includes(q) &&
-          !t.aplicacion.toLowerCase().includes(q)
-        )
-          return false;
-      }
-      return true;
-    });
-  }, [tasks, fechaInicio, fechaFin, filterRQ, filterApp, search]);
-
-  // Stats
-  const completadas = filtered.filter((t) => t.status === 'completada').length;
-  // const enProgreso = filtered.filter((t) => t.status === 'en-progreso').length;
-  const pendientes = filtered.filter((t) => t.status === 'pendiente').length;
-
-  // Total tiempo invertido (parse "Xh Ym" → minutes)
-  const totalMins = filtered.reduce((acc, t) => {
-    if (!t.tiempoInvertido) return acc;
-    const h = t.tiempoInvertido.match(/(\d+)h/);
-    const m = t.tiempoInvertido.match(/(\d+)m/);
-    return acc + (h ? parseInt(h[1]) * 60 : 0) + (m ? parseInt(m[1]) : 0);
-  }, 0);
-  const totalTiempo =
-    totalMins > 0
-      ? `${Math.floor(totalMins / 60)}h ${totalMins % 60}m`
-      : '—';
-
   const handleExport = async () => {
     setExporting(true);
     try {
+      const allTasks = await fetchAllTasksForExport({
+        fechaInicio,
+        fechaFin,
+        rqTicket: filterRQ || undefined,
+        aplicacion: filterApp || undefined,
+        search: debouncedSearch || undefined,
+      });
       await exportInformeMensual({
         fechaInicio,
         fechaFin,
-        tasks: filtered,
+        tasks: allTasks,
         tickets,
         userName: user?.nombre ?? '',
       });
@@ -128,7 +110,6 @@ export function ReportsView() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-start justify-between">
         <div>
           <h2 className="text-xl font-semibold">Reportes</h2>
@@ -136,16 +117,17 @@ export function ReportsView() {
             Consulta y exporta tus actividades por rango de fechas
           </p>
         </div>
-        <Button 
-        onClick={handleExport} disabled={filtered.length === 0 || exporting} 
-        isLoading={exporting}
-        className="gap-2">
+        <Button
+          onClick={handleExport}
+          disabled={data.totalElements === 0 || exporting}
+          isLoading={exporting}
+          className="gap-2"
+        >
           <Download className="h-4 w-4" />
           Exportar Excel
         </Button>
       </div>
 
-      {/* Filters */}
       <Card className="border shadow-none">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -154,7 +136,6 @@ export function ReportsView() {
           </CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-          {/* Fecha inicio */}
           <div className="space-y-1.5">
             <Label htmlFor="fechaInicio">Fecha inicio</Label>
             <Input
@@ -164,8 +145,6 @@ export function ReportsView() {
               onChange={(e) => setFechaInicio(e.target.value)}
             />
           </div>
-
-          {/* Fecha fin */}
           <div className="space-y-1.5">
             <Label htmlFor="fechaFin">Fecha fin</Label>
             <Input
@@ -175,8 +154,6 @@ export function ReportsView() {
               onChange={(e) => setFechaFin(e.target.value)}
             />
           </div>
-
-          {/* RQ / Ticket */}
           <div className="space-y-1.5">
             <Label>RQ / Ticket</Label>
             <Combobox
@@ -187,8 +164,6 @@ export function ReportsView() {
               searchPlaceholder="Buscar ticket..."
             />
           </div>
-
-          {/* Aplicación */}
           <div className="space-y-1.5">
             <Label>Aplicación</Label>
             <Combobox
@@ -202,21 +177,13 @@ export function ReportsView() {
         </CardContent>
       </Card>
 
-      {/* Stats */}
-      {/* <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <StatCard label="Total tareas" value={filtered.length} />
-        <StatCard label="Completadas" value={completadas} sub={filtered.length ? `${Math.round((completadas / filtered.length) * 100)}%` : undefined} />
-        <StatCard label="Pendientes" value={`${pendientes}`} />
-        <StatCard label="Tiempo total" value={totalTiempo} />
-      </div> */}
-
-      {/* Search + table */}
       <Card className="border shadow-none">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between gap-4">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
-              {filtered.length} actividad{filtered.length !== 1 ? 'es' : ''} encontrada{filtered.length !== 1 ? 's' : ''}
+              {data.totalElements} actividad{data.totalElements !== 1 ? 'es' : ''} encontrada
+              {data.totalElements !== 1 ? 's' : ''}
               {(fechaInicio || fechaFin) && (
                 <span className="text-muted-foreground font-normal">
                   · {formatDate(fechaInicio)} — {formatDate(fechaFin)}
@@ -235,7 +202,11 @@ export function ReportsView() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {filtered.length === 0 ? (
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
+              <p className="text-sm">Cargando actividades...</p>
+            </div>
+          ) : data.content.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
               <Calendar className="h-10 w-10 opacity-30" />
               <p className="text-sm">No se encontraron actividades con los filtros aplicados</p>
@@ -256,43 +227,48 @@ export function ReportsView() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered
-                    .slice()
-                    .sort((a, b) => a.fecha.localeCompare(b.fecha))
-                    .map((task) => (
-                      <tr key={task.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                        <td className="px-3 py-2.5 whitespace-nowrap text-muted-foreground text-xs">
-                          {formatDate(task.fecha)}
-                        </td>
-                        <td className="px-3 py-2.5 max-w-[220px]">
-                          <span className="font-medium truncate block" title={task.nombre}>
-                            {task.nombre}
+                  {data.content.map((task) => (
+                    <tr key={task.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                      <td className="px-3 py-2.5 whitespace-nowrap text-muted-foreground text-xs">
+                        {formatDate(task.fecha)}
+                      </td>
+                      <td className="px-3 py-2.5 max-w-[220px]">
+                        <span className="font-medium truncate block" title={task.nombre}>
+                          {task.nombre}
+                        </span>
+                        {task.observacion && (
+                          <span className="text-xs text-muted-foreground truncate block" title={task.observacion}>
+                            {task.observacion}
                           </span>
-                          {task.observacion && (
-                            <span className="text-xs text-muted-foreground truncate block" title={task.observacion}>
-                              {task.observacion}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-3 py-2.5 whitespace-nowrap">
-                          <span className="text-xs font-mono text-muted-foreground">{task.rqTicket || '—'}</span>
-                        </td>
-                        <td className="px-3 py-2.5 whitespace-nowrap text-sm">{task.aplicacion || '—'}</td>
-                        <td className="px-3 py-2.5 whitespace-nowrap">
-                          <Badge label={TASK_STATUS_LABELS[task.status]} className={TASK_STATUS_COLORS[task.status]} />
-                        </td>
-                        <td className="px-3 py-2.5 whitespace-nowrap">
-                          <Badge label={TASK_PRIORITY_LABELS[task.priority]} className={TASK_PRIORITY_COLORS[task.priority]} />
-                        </td>
-                        <td className="px-3 py-2.5 whitespace-nowrap text-muted-foreground text-sm">{task.horaInicio || '—'}</td>
-                        <td className="px-3 py-2.5 whitespace-nowrap text-muted-foreground text-sm">{task.horaFin || '—'}</td>
-                        <td className="px-3 py-2.5 whitespace-nowrap">
-                          <span className="text-sm font-medium">{task.tiempoInvertido || '—'}</span>
-                        </td>
-                      </tr>
-                    ))}
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <span className="text-xs font-mono text-muted-foreground">{task.rqTicket || '—'}</span>
+                      </td>
+                      <td className="px-3 py-2.5 whitespace-nowrap text-sm">{task.aplicacion || '—'}</td>
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <Badge label={TASK_STATUS_LABELS[task.status]} className={TASK_STATUS_COLORS[task.status]} />
+                      </td>
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <Badge label={TASK_PRIORITY_LABELS[task.priority]} className={TASK_PRIORITY_COLORS[task.priority]} />
+                      </td>
+                      <td className="px-3 py-2.5 whitespace-nowrap text-muted-foreground text-sm">{task.horaInicio || '—'}</td>
+                      <td className="px-3 py-2.5 whitespace-nowrap text-muted-foreground text-sm">{task.horaFin || '—'}</td>
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <span className="text-sm font-medium">{task.tiempoInvertido || '—'}</span>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
+              <DataTablePagination
+                page={data.page}
+                size={data.size}
+                totalElements={data.totalElements}
+                totalPages={data.totalPages}
+                onPageChange={setPage}
+                onSizeChange={setSize}
+              />
             </div>
           )}
         </CardContent>
