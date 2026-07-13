@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useUser } from '../../hooks/useAuth';
 import { useTickets } from '../../hooks/useTickets';
-import { useTasks } from '../../hooks/useTasks';
+import { usePaginatedTasks } from '../../hooks/useTasks';
 import { getAlarmLevel } from '../../lib/ticket-types';
 import { TASK_STATUS_COLORS, TASK_STATUS_LABELS } from '../../lib/task-types';
 import { cn } from '../../lib/utils';
@@ -63,9 +63,11 @@ const quickActions = [
 export function DashboardHome() {
   const { user } = useUser();
   const { tickets } = useTickets();
-  const { getTasksForDate } = useTasks();
-
   const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+  const { data: todayTasksPage } = usePaginatedTasks({ fecha: todayStr, page: 0, size: 100 });
+  const todayTasks = todayTasksPage.content;
+
   const formattedDate = today.toLocaleDateString('es-ES', {
     weekday: 'long',
     year: 'numeric',
@@ -80,8 +82,6 @@ export function DashboardHome() {
   const firstName = user?.nombre?.split(' ')[0] ?? 'Usuario';
 
   // Live stats
-  const todayStr = today.toISOString().split('T')[0];
-  const todayTasks = getTasksForDate(todayStr);
   const todayCompleted = todayTasks.filter((t) => t.status === 'completada').length;
 
   const urgentTickets = tickets.filter((t) => {

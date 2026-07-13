@@ -32,15 +32,23 @@ import {
   TASK_PRIORITY_COLORS,
 } from "../../lib/task-types";
 import { cn } from "../../lib/utils";
+import { DataTablePagination } from "../ui/data-table-pagination";
 
 const col = createColumnHelper<Task>();
 
 interface TaskTableProps {
   tasks: Task[];
+  loading?: boolean;
   onEdit: (task: Task) => void;
   onDelete: (id: string) => void;
   onFinish: (task: Task) => void;
   onConsult: (task: Task, observacion: string) => void;
+  page?: number;
+  size?: number;
+  totalElements?: number;
+  totalPages?: number;
+  onPageChange?: (page: number) => void;
+  onSizeChange?: (size: number) => void;
 }
 
 function Badge({ label, className }: { label: string; className: string }) {
@@ -58,10 +66,17 @@ function Badge({ label, className }: { label: string; className: string }) {
 
 export function TaskTable({
   tasks,
+  loading = false,
   onEdit,
   onDelete,
   onFinish,
   onConsult,
+  page,
+  size,
+  totalElements,
+  totalPages,
+  onPageChange,
+  onSizeChange,
 }: TaskTableProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
@@ -276,7 +291,13 @@ export function TaskTable({
             ))}
           </thead>
           <tbody>
-            {table.getRowModel().rows.length === 0 ? (
+            {loading ? (
+              <tr>
+                <td colSpan={columns.length} className="text-center py-10 text-muted-foreground text-sm">
+                  Cargando tareas...
+                </td>
+              </tr>
+            ) : table.getRowModel().rows.length === 0 ? (
               <tr>
                 <td
                   colSpan={columns.length}
@@ -304,9 +325,24 @@ export function TaskTable({
             )}
           </tbody>
         </table>
+        {page !== undefined &&
+          size !== undefined &&
+          totalElements !== undefined &&
+          totalPages !== undefined &&
+          onPageChange &&
+          onSizeChange && (
+            <DataTablePagination
+              page={page}
+              size={size}
+              totalElements={totalElements}
+              totalPages={totalPages}
+              onPageChange={onPageChange}
+              onSizeChange={onSizeChange}
+            />
+          )}
       </div>
 
-      {tasks.length > 0 && (
+      {!loading && tasks.length > 0 && totalElements === undefined && (
         <p className="text-xs text-muted-foreground">
           {table.getFilteredRowModel().rows.length} de {tasks.length} tareas
         </p>

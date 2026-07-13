@@ -23,9 +23,9 @@ import {
 
 const schema = z.object({
   nombre: z.string().min(1, "Requerido").max(255, "Máximo 255 caracteres"),
-  rqTicket: z.string().max(50, "Máximo 50 caracteres"),
+  rqTicket: z.string().min(1, "Requerido").max(50, "Máximo 50 caracteres"),
   solicitante: z.string().max(100, "Máximo 100 caracteres"),
-  aplicacion: z.string().max(150, "Máximo 150 caracteres"),
+  aplicacion: z.string().min(1, "Requerido").max(150, "Máximo 150 caracteres"),
   observacion: z.string().max(5000, "Máximo 5000 caracteres"),
   urlEscenario: z.string().max(500, "Máximo 500 caracteres"),
   status: z.enum([
@@ -204,7 +204,7 @@ export function TaskFormModal({
             {/* RQ / Ticket + Aplicación */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label>RQ / Ticket</Label>
+                <Label>RQ / Ticket *</Label>
                 <Controller
                   control={form.control}
                   name="rqTicket"
@@ -222,9 +222,14 @@ export function TaskFormModal({
                     />
                   )}
                 />
+                {form.formState.errors.rqTicket?.message && (
+                  <p className="text-xs text-destructive">
+                    {form.formState.errors.rqTicket.message}
+                  </p>
+                )}
               </div>
               <div className="space-y-1.5">
-                <Label>Aplicación</Label>
+                <Label>Aplicación *</Label>
                 <Controller
                   control={form.control}
                   name="aplicacion"
@@ -242,6 +247,11 @@ export function TaskFormModal({
                     />
                   )}
                 />
+                {form.formState.errors.aplicacion?.message && (
+                  <p className="text-xs text-destructive">
+                    {form.formState.errors.aplicacion.message}
+                  </p>
+                )}
               </div>
             </div>
 
