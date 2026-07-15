@@ -19,6 +19,7 @@ import {
   X,
   Loader2,
   BarChart3,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -31,6 +32,7 @@ import apiClient from '../../lib/api';
 import { CACHE_TTL, fetchCached, getCached, invalidateCache } from '../../lib/api-cache';
 import { useUser } from '../../hooks/useAuth';
 import { TeamStatsModal } from './TeamStatsModal';
+import { TeamReportModal } from './TeamReportModal';
 import type { StatsMember } from './TeamStatsModal';
 
 // ---- Types ----
@@ -39,6 +41,7 @@ type MemberStatus = 'activo' | 'inactivo';
 
 interface TeamMember {
   id: string;
+  userId?: number | null;
   nombre: string;
   email: string;
   role: MemberRole;
@@ -258,7 +261,7 @@ function MemberModal({
     <Dialog.Root open={open} onOpenChange={(v) => !v && handleClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-md bg-card rounded-xl border shadow-xl p-6 overflow-hidden">
+        <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[calc(100%-2rem)] max-w-md bg-card rounded-xl border shadow-xl p-6 overflow-hidden">
           {loading && (
             <div className="absolute inset-0 bg-card/90 backdrop-blur-sm rounded-xl flex flex-col items-center justify-center gap-3 z-10">
               <Loader2 className="w-10 h-10 text-primary animate-spin" />
@@ -353,7 +356,7 @@ function MemberModal({
                 )}
                 {existingError && <p className="text-xs text-destructive">{existingError}</p>}
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label>Rol</Label>
                   <select
@@ -407,7 +410,7 @@ function MemberModal({
                   error={!member ? form.formState.errors.email?.message : undefined}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label>Rol</Label>
                   <select
@@ -506,7 +509,7 @@ function TeamModal({
     <Dialog.Root open={open} onOpenChange={(v) => !v && onClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-md bg-card rounded-xl border shadow-xl p-6">
+        <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[calc(100%-2rem)] max-w-md bg-card rounded-xl border shadow-xl p-6">
           <div className="flex items-center justify-between mb-5">
             <Dialog.Title className="text-base font-semibold">
               {team ? 'Editar equipo' : 'Nuevo equipo'}
@@ -557,6 +560,7 @@ function TeamCard({
   onEditMember,
   onDeleteMember,
   onStats,
+  onReport,
   readOnly = false,
 }: {
   team: Team;
@@ -566,6 +570,7 @@ function TeamCard({
   onEditMember: (m: TeamMember) => void;
   onDeleteMember: (id: string, nombre: string) => void;
   onStats: () => void;
+  onReport: () => void;
   readOnly?: boolean;
 }) {
   const [expanded, setExpanded] = useState(true);
@@ -579,24 +584,27 @@ function TeamCard({
   return (
     <Card className="border shadow-none">
       <CardHeader className="pb-3">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
               <Users className="h-5 w-5 text-primary" />
             </div>
-            <div>
-              <CardTitle className="text-base">{team.nombre}</CardTitle>
+            <div className="min-w-0">
+              <CardTitle className="text-base truncate">{team.nombre}</CardTitle>
               {team.descripcion && (
-                <p className="text-xs text-muted-foreground mt-0.5">{team.descripcion}</p>
+                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{team.descripcion}</p>
               )}
             </div>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 shrink-0">
             <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={onStats} title="Estadísticas">
               <BarChart3 className="h-3.5 w-3.5" />
             </Button>
             {!readOnly && (
               <>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={onReport} title="Generar reporte">
+                  <FileSpreadsheet className="h-3.5 w-3.5" />
+                </Button>
                 <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={onEdit}>
                   <Pencil className="h-3.5 w-3.5" />
                 </Button>
@@ -748,6 +756,7 @@ export function TeamsView() {
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
   const [deleteMemberConfirm, setDeleteMemberConfirm] = useState<{ teamId: string; memberId: string; nombre: string } | null>(null);
   const [statsTeam, setStatsTeam] = useState<{ id: string; nombre: string; members: StatsMember[] } | null>(null);
+  const [reportTeam, setReportTeam] = useState<Team | null>(null);
 
   const handleSaveTeam = async (data: TeamFormData) => {
     try {
@@ -874,10 +883,10 @@ export function TeamsView() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <h2 className="text-xl font-semibold">Equipos</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
             Gestiona tus equipos y sus miembros
@@ -885,7 +894,7 @@ export function TeamsView() {
         </div>
         {!teamInfo && (
           <Button
-            className="gap-2"
+            className="w-full gap-2 sm:w-auto shrink-0"
             onClick={() => {
               setEditingTeam(null);
               setTeamModalOpen(true);
@@ -932,6 +941,7 @@ export function TeamsView() {
               onEditMember={(m) => openEditMember(team.id, m)}
               onDeleteMember={(mid, nombre) => setDeleteMemberConfirm({ teamId: team.id, memberId: mid, nombre })}
               onStats={() => setStatsTeam({ id: team.id, nombre: team.nombre, members: team.members })}
+              onReport={() => setReportTeam(team)}
               readOnly={!!teamInfo}
             />
           ))}
@@ -965,11 +975,17 @@ export function TeamsView() {
         team={statsTeam}
       />
 
+      <TeamReportModal
+        open={!!reportTeam}
+        onClose={() => setReportTeam(null)}
+        team={reportTeam}
+      />
+
       {/* Delete member confirm */}
       <Dialog.Root open={!!deleteMemberConfirm} onOpenChange={(v) => !v && setDeleteMemberConfirm(null)}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50" />
-          <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-sm bg-card rounded-xl border shadow-xl p-6">
+          <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[calc(100%-2rem)] max-w-sm bg-card rounded-xl border shadow-xl p-6">
             <Dialog.Title className="text-base font-semibold mb-2">Quitar del equipo</Dialog.Title>
             <p className="text-sm text-muted-foreground leading-relaxed mb-5">
               Se quitará a{' '}

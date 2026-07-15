@@ -15,6 +15,8 @@ export interface TaskPageParams {
   search?: string;
   page?: number;
   size?: number;
+  userId?: number;
+  teamId?: string;
 }
 
 export interface TaskDateSummary {
@@ -63,6 +65,8 @@ export function usePaginatedTasks(params: TaskPageParams) {
         search: params.search,
         page: params.page ?? 0,
         size: params.size ?? DEFAULT_PAGE_SIZE,
+        userId: params.userId,
+        teamId: params.teamId,
       });
       const cacheKey = `api:tasks:page:${query}`;
       const response = await fetchCached(
@@ -86,6 +90,8 @@ export function usePaginatedTasks(params: TaskPageParams) {
     params.search,
     params.page,
     params.size,
+    params.userId,
+    params.teamId,
   ]);
 
   useEffect(() => {

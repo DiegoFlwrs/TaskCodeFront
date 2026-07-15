@@ -67,7 +67,7 @@ export function AssignedMembersAvatars({ members }: AssignedMembersAvatarsProps)
       <Dialog.Root open={open} onOpenChange={setOpen}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50" />
-          <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-sm bg-card rounded-xl border shadow-xl p-6">
+          <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[calc(100%-2rem)] max-w-sm bg-card rounded-xl border shadow-xl p-6">
             <div className="flex items-start justify-between mb-4">
               <div>
                 <Dialog.Title className="text-base font-semibold">

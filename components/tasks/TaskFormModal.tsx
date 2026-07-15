@@ -172,7 +172,7 @@ export function TaskFormModal({
     <Dialog.Root open={open} onOpenChange={(v) => !v && onClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-card rounded-xl border shadow-xl p-6 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95">
+        <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[calc(100%-2rem)] max-w-2xl max-h-[90vh] overflow-y-auto bg-card rounded-xl border shadow-xl p-4 sm:p-6 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95">
           <div className="flex items-start justify-between mb-6">
             <div>
               <Dialog.Title className="text-lg font-semibold">
@@ -202,7 +202,7 @@ export function TaskFormModal({
             </div>
 
             {/* RQ / Ticket + Aplicación */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label>RQ / Ticket *</Label>
                 <Controller
@@ -256,7 +256,7 @@ export function TaskFormModal({
             </div>
 
             {/* Status + Prioridad */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* {isEditing && (
                 <div className="space-y-1.5">
                   <Label htmlFor="status">Estado</Label>
@@ -302,7 +302,7 @@ export function TaskFormModal({
 
             {/* Horario */}
             <div
-              className={`grid gap-4 ${isEditing ? "grid-cols-3" : "grid-cols-1"}`}
+              className={`grid gap-4 ${isEditing ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-1"}`}
             >
               {/* Horario — solo al crear */}
               {!isEditing && (

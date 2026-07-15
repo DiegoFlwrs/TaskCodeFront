@@ -42,7 +42,7 @@ function AppModal({
     <Dialog.Root open={open} onOpenChange={(v) => !v && onClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-md bg-card rounded-xl border shadow-xl p-6">
+        <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[calc(100%-2rem)] max-w-md bg-card rounded-xl border shadow-xl p-6">
           <div className="flex items-start justify-between mb-5">
             <Dialog.Title className="text-base font-semibold">{app ? 'Editar aplicación' : 'Nueva aplicación'}</Dialog.Title>
             <Dialog.Close asChild>
@@ -127,19 +127,19 @@ export function AppsView() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <h2 className="text-xl font-semibold">Aplicaciones</h2>
           <p className="text-sm text-muted-foreground mt-0.5">Registra los sistemas que utilizas en tus tareas</p>
         </div>
-        <Button className="gap-2" onClick={() => { setEditingApp(null); setModalOpen(true); }}>
+        <Button className="w-full gap-2 sm:w-auto shrink-0" onClick={() => { setEditingApp(null); setModalOpen(true); }}>
           <Plus className="h-4 w-4" /> Nueva aplicación
         </Button>
       </div>
 
       {apps.length > 0 && (
-        <div className="relative max-w-xs">
+        <div className="relative w-[calc(100%-2rem)] max-w-xs">
           <input
             className="w-full h-9 pl-9 pr-3 rounded-md border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             placeholder="Buscar aplicación..."

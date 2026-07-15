@@ -211,7 +211,7 @@ function TicketModal({
     <Dialog.Root open={open} onOpenChange={(v) => !v && onClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-lg bg-card rounded-xl border shadow-xl p-6 max-h-[90vh] overflow-y-auto">
+        <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[calc(100%-2rem)] max-w-lg bg-card rounded-xl border shadow-xl p-6 max-h-[90vh] overflow-y-auto">
           <div className="flex items-start justify-between mb-5">
             <div>
               <Dialog.Title className="text-base font-semibold">
@@ -296,7 +296,7 @@ function TicketModal({
                 )}
               </div>
             )}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label>Código *</Label>
                 <Input
@@ -354,7 +354,7 @@ function TicketModal({
 
             {/* Fechas — solo al crear */}
             {!isEditing && (
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label>Fecha inicio *</Label>
                   <Input
@@ -611,17 +611,17 @@ export function TicketsView() {
   } | null>(null);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <h2 className="text-xl font-semibold">Tickets / RQ</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
             Gestiona tus requerimientos y tickets de trabajo
           </p>
         </div>
         <Button
-          className="gap-2"
+          className="w-full gap-2 sm:w-auto shrink-0"
           onClick={() => {
             setEditingTicket(null);
             setModalOpen(true);
@@ -659,27 +659,29 @@ export function TicketsView() {
       )}
 
       {/* Filters + search */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex gap-1 bg-muted p-1 rounded-lg">
-          {filterButtons.map((fb) => (
-            <button
-              key={fb.value}
-              onClick={() => {
-                setFilterStatus(fb.value);
-                setPage(0);
-              }}
-              className={cn(
-                "px-3 py-1 rounded-md text-sm transition-colors",
-                filterStatus === fb.value
-                  ? "bg-background text-foreground shadow-sm font-medium"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {fb.label}
-            </button>
-          ))}
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="-mx-1 overflow-x-auto px-1">
+          <div className="inline-flex gap-1 bg-muted p-1 rounded-lg min-w-min">
+            {filterButtons.map((fb) => (
+              <button
+                key={fb.value}
+                onClick={() => {
+                  setFilterStatus(fb.value);
+                  setPage(0);
+                }}
+                className={cn(
+                  "px-3 py-1 rounded-md text-sm transition-colors whitespace-nowrap",
+                  filterStatus === fb.value
+                    ? "bg-background text-foreground shadow-sm font-medium"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {fb.label}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="relative flex-1 max-w-xs">
+        <div className="relative w-full sm:flex-1 sm:max-w-xs">
           <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
             className="w-full h-9 pl-9 pr-3 rounded-md border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
@@ -947,7 +949,7 @@ export function TicketsView() {
       >
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50" />
-          <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-sm bg-card rounded-xl border shadow-xl p-6">
+          <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[calc(100%-2rem)] max-w-sm bg-card rounded-xl border shadow-xl p-6">
             <Dialog.Title className="text-base font-semibold">
               ¿Completar este ticket?
             </Dialog.Title>
@@ -1005,7 +1007,7 @@ export function TicketsView() {
       >
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50" />
-          <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-sm bg-card rounded-xl border shadow-xl p-6">
+          <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[calc(100%-2rem)] max-w-sm bg-card rounded-xl border shadow-xl p-6">
             <Dialog.Title className="text-base font-semibold">
               ¿Eliminar este ticket?
             </Dialog.Title>

@@ -695,21 +695,21 @@ export function TeamStatsModal({
     <Dialog.Root open={open} onOpenChange={(v) => !v && onClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-4xl bg-card rounded-xl border shadow-xl max-h-[92vh] flex flex-col">
+        <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[calc(100%-2rem)] max-w-4xl bg-card rounded-xl border shadow-xl max-h-[92vh] flex flex-col">
 
           {/* Header */}
-          <div className="flex items-start justify-between px-6 pt-5 pb-4 border-b shrink-0">
-            <div>
+          <div className="flex items-start justify-between gap-3 px-4 pt-4 pb-3 sm:px-6 sm:pt-5 sm:pb-4 border-b shrink-0">
+            <div className="min-w-0">
               <Dialog.Title className="text-base font-semibold flex items-center gap-2">
-                <BarChart3 className="h-4 w-4 text-primary" />
-                Estadísticas — {team?.nombre}
+                <BarChart3 className="h-4 w-4 shrink-0 text-primary" />
+                <span className="truncate">Estadísticas — {team?.nombre}</span>
               </Dialog.Title>
               <Dialog.Description className="text-xs text-muted-foreground mt-0.5">
                 KPIs para decisiones de equipo — cumplimiento, carga y riesgos
               </Dialog.Description>
             </div>
             <Dialog.Close asChild>
-              <button className="p-1.5 rounded-md text-muted-foreground hover:bg-muted">
+              <button className="p-1.5 rounded-md text-muted-foreground hover:bg-muted shrink-0">
                 <X className="h-4 w-4" />
               </button>
             </Dialog.Close>
@@ -769,7 +769,7 @@ export function TeamStatsModal({
           </div>
 
           {/* Body */}
-          <div className="overflow-y-auto flex-1 p-6">
+          <div className="overflow-y-auto flex-1 p-4 sm:p-6">
             {loading ? (
               <div className="flex flex-col items-center justify-center py-20 gap-3">
                 <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />

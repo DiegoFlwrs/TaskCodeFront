@@ -15,6 +15,7 @@ import { usePaginatedTasks, useTaskDates, useTaskMutations } from "../../hooks/u
 import { Task, TaskFormData } from "../../lib/task-types";
 import { useToastManager } from "../ui/toast-manager";
 import { DEFAULT_PAGE_SIZE } from "../../lib/pagination";
+import { getHolidayName, isHoliday, toDateStr } from "../../lib/feriados";
 import "./calendar.css";
 
 export function TasksView() {
@@ -28,7 +29,13 @@ export function TasksView() {
 
   useEffect(() => {
     const date = searchParams.get("date");
-    if (date) setSelectedDate(date);
+    if (!date) return;
+    if (isHoliday(date)) {
+      toast.error("Día no laborable", `No se pueden asignar tareas en feriado (${getHolidayName(date)})`);
+      return;
+    }
+    setSelectedDate(date);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo reaccionar al query param
   }, [searchParams]);
 
   const [formOpen, setFormOpen] = useState(false);
@@ -53,10 +60,21 @@ export function TasksView() {
   }, [selectedDate, size]);
 
   const handleDateClick = useCallback((arg: DateClickArg) => {
+    if (isHoliday(arg.dateStr)) {
+      toast.error(
+        "Día feriado",
+        `${getHolidayName(arg.dateStr) ?? "Feriado"} — no laborable, no se pueden asignar tareas`,
+      );
+      return;
+    }
     setSelectedDate(arg.dateStr);
-  }, []);
+  }, [toast]);
 
   const handleAddTask = () => {
+    if (selectedDate && isHoliday(selectedDate)) {
+      toast.error("Día feriado", "No se pueden asignar tareas en un día no laborable");
+      return;
+    }
     setEditingTask(null);
     setFormOpen(true);
   };
@@ -81,10 +99,15 @@ export function TasksView() {
         await updateTask(editingTask.id, data);
         toast.success("Tarea actualizada", "Los cambios fueron guardados");
       } else if (selectedDate) {
+        if (isHoliday(selectedDate)) {
+          toast.error("Día feriado", "No se pueden asignar tareas en un día no laborable");
+          throw new Error("holiday");
+        }
         await addTask(selectedDate, data);
         toast.success("Tarea agregada", "La tarea fue registrada correctamente");
       }
-    } catch {
+    } catch (err) {
+      if (err instanceof Error && err.message === "holiday") throw err;
       toast.error("Error", "No se pudo guardar la tarea");
       throw new Error("save failed");
     }
@@ -150,23 +173,27 @@ export function TasksView() {
   }));
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <h2 className="text-xl font-semibold">Mis Tareas</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
             Selecciona un día para ver o registrar tus actividades
           </p>
         </div>
         {!selectedDate && (
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-3 sm:gap-4">
             <div className="flex items-center gap-1.5">
               <span className="w-3 h-3 rounded-sm bg-amber-500" />
               <span className="text-xs text-muted-foreground">Tiene tareas pendientes</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="w-3 h-3 rounded-sm bg-emerald-600" />
-              <span className="text-xs text-muted-foreground">Todas las tareas completadas</span>
+              <span className="text-xs text-muted-foreground">Todas completadas</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-sm bg-rose-200 border border-rose-300" />
+              <span className="text-xs text-muted-foreground">Feriado (no laborable)</span>
             </div>
           </div>
         )}
@@ -197,7 +224,27 @@ export function TasksView() {
               height="auto"
               dayMaxEvents={2}
               eventClassNames="cursor-pointer"
-              dayCellClassNames="cursor-pointer hover:bg-muted/50 transition-colors"
+              dayCellClassNames={(arg) => {
+                const dateStr = toDateStr(arg.date);
+                if (isHoliday(dateStr)) {
+                  return ["fc-day-holiday"];
+                }
+                return ["cursor-pointer", "hover:bg-muted/50", "transition-colors"];
+              }}
+              dayCellContent={(arg) => {
+                const dateStr = toDateStr(arg.date);
+                const holiday = getHolidayName(dateStr);
+                return (
+                  <div className="fc-daygrid-day-top flex flex-col items-end gap-0.5 w-full px-1">
+                    <span className="fc-daygrid-day-number">{arg.date.getDate()}</span>
+                    {holiday && (
+                      <span className="fc-holiday-label" title={holiday}>
+                        Feriado
+                      </span>
+                    )}
+                  </div>
+                );
+              }}
               buttonIcons={false}
               buttonText={{
                 today: "Hoy",

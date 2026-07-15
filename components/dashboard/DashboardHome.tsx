@@ -137,7 +137,7 @@ export function DashboardHome() {
       {/* Welcome */}
       <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">
+          <h2 className="text-xl sm:text-2xl font-bold text-foreground">
             {greeting}, {firstName} 👋
           </h2>
           <p className="text-muted-foreground mt-1 capitalize">{formattedDate}</p>
