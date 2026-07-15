@@ -357,7 +357,7 @@ export function TaskTable({
       >
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50" />
-          <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-sm bg-card rounded-xl border shadow-xl p-6">
+          <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[calc(100%-2rem)] max-w-sm bg-card rounded-xl border shadow-xl p-6">
             <Dialog.Title className="text-base font-semibold">
               ¿Finalizar esta tarea?
             </Dialog.Title>
@@ -404,7 +404,7 @@ export function TaskTable({
       >
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50" />
-          <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-sm bg-card rounded-xl border shadow-xl p-6">
+          <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[calc(100%-2rem)] max-w-sm bg-card rounded-xl border shadow-xl p-6">
             <Dialog.Title className="text-base font-semibold flex items-center gap-2">
               <HelpCircle className="h-4 w-4 text-purple-600" />
               {consultTask?.status === "consultar"

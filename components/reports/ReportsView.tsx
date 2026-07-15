@@ -109,9 +109,9 @@ export function ReportsView() {
       : '—';
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between">
-        <div>
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
           <h2 className="text-xl font-semibold">Reportes</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
             Consulta y exporta tus actividades por rango de fechas
@@ -121,10 +121,10 @@ export function ReportsView() {
           onClick={handleExport}
           disabled={data.totalElements === 0 || exporting}
           isLoading={exporting}
-          className="gap-2"
+          className="w-full gap-2 sm:w-auto shrink-0"
         >
           <Download className="h-4 w-4" />
-          Exportar Excel
+          Exportar
         </Button>
       </div>
 
@@ -179,18 +179,20 @@ export function ReportsView() {
 
       <Card className="border shadow-none">
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between gap-4">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
-              {data.totalElements} actividad{data.totalElements !== 1 ? 'es' : ''} encontrada
-              {data.totalElements !== 1 ? 's' : ''}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle className="text-sm font-semibold flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2 min-w-0">
+              <span className="inline-flex items-center gap-2">
+                <FileSpreadsheet className="h-4 w-4 shrink-0 text-muted-foreground" />
+                {data.totalElements} actividad{data.totalElements !== 1 ? 'es' : ''} encontrada
+                {data.totalElements !== 1 ? 's' : ''}
+              </span>
               {(fechaInicio || fechaFin) && (
-                <span className="text-muted-foreground font-normal">
-                  · {formatDate(fechaInicio)} — {formatDate(fechaFin)}
+                <span className="text-muted-foreground font-normal text-xs sm:text-sm">
+                  {formatDate(fechaInicio)} — {formatDate(fechaFin)}
                 </span>
               )}
             </CardTitle>
-            <div className="relative w-64">
+            <div className="relative w-full sm:w-64 shrink-0">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <input
                 className="w-full h-9 pl-9 pr-3 rounded-md border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"

@@ -45,6 +45,41 @@
   color: hsl(var(--foreground));
 }
 
+@media (max-width: 640px) {
+  .fc .fc-toolbar {
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: stretch;
+  }
+
+  .fc .fc-toolbar-chunk {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+
+  .fc .fc-toolbar-title {
+    font-size: 0.9375rem;
+    text-align: center;
+  }
+
+  .fc .fc-button {
+    font-size: 0.75rem;
+    padding: 0.3rem 0.55rem;
+  }
+
+  .fc .fc-col-header-cell-cushion {
+    font-size: 0.65rem;
+    letter-spacing: 0;
+  }
+
+  .fc .fc-daygrid-day-number {
+    font-size: 0.75rem;
+    padding: 4px;
+  }
+}
+
 .fc .fc-col-header-cell-cushion {
   font-size: 0.75rem;
   font-weight: 600;
@@ -89,6 +124,32 @@
 
 .fc .fc-daygrid-day:hover {
   background-color: hsl(var(--muted) / 0.5);
+}
+
+.fc .fc-day-holiday {
+  background-color: #fff1f2 !important; /* rose-50 */
+  cursor: not-allowed !important;
+}
+
+.fc .fc-day-holiday:hover {
+  background-color: #ffe4e6 !important; /* rose-100 */
+}
+
+.fc .fc-day-holiday .fc-daygrid-day-number {
+  color: #be123c; /* rose-700 */
+  font-weight: 600;
+}
+
+.fc .fc-holiday-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: #be123c;
+  line-height: 1.1;
+  text-align: right;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .event-all-done {
